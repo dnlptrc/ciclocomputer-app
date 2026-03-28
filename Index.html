@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ciclocomputer Simplu</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #222; color: #fff; text-align: center; }
+        .container { margin-top: 50px; }
+        .label { font-size: 1.2rem; color: #aaa; }
+        .value { font-size: 4rem; font-weight: bold; margin-bottom: 20px; color: #00ff00; }
+        button { padding: 15px 30px; font-size: 1rem; cursor: pointer; background: #444; color: white; border: none; border-radius: 5px; }
+        button:active { background: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="label">Viteză (km/h)</div>
+        <div id="speed" class="value">0.0</div>
+
+        <div class="label">Distanță (km)</div>
+        <div id="distance" class="value">0.00</div>
+
+        <button onclick="startTracking()">Start Călătorie</button>
+    </div>
+<script>
+    let totalDistance = 0;
+    let lastPosition = null;
+
+    function startTracking() {
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(updateStats, handleError, {
+                enableHighAccuracy: true
+            });
+        } else {
+            alert("GPS-ul nu este suportat de acest dispozitiv.");
+        }
+    }
+
+    function updateStats(position) {
+        const coords = position.coords;
+
+        // 1. Viteza (convertim din m/s în km/h)
+        // Formula: m/s * 3.6 = km/h
+        let speedKmH = coords.speed ? (coords.speed * 3.6).toFixed(1) : 0;
+        document.getElementById('speed').innerText = speedKmH;
+
+        // 2. Distanța (dacă avem o poziție anterioară)
+        if (lastPosition) {
+            const d = calculateDistance(
+                lastPosition.latitude, lastPosition.longitude,
+                coords.latitude, coords.longitude
+            );
+            totalDistance += d;
+            document.getElementById('distance').innerText = totalDistance.toFixed(2);
+        }
+        lastPosition = coords;
+    }
+
+    // Formula Haversine pentru distanța între puncte GPS
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Raza Pământului în km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    function handleError(error) {
+        console.warn("Eroare GPS: " + error.message);
+    }
+</script>
+</body>
+</html>
