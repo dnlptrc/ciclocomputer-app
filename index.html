@@ -3,50 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ciclocomputer Simplu</title>
+    <title>CicloPro v2</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #222; color: #fff; text-align: center; }
-        .container { margin-top: 50px; }
-        .label { font-size: 1.2rem; color: #aaa; }
-        .value { font-size: 4rem; font-weight: bold; margin-bottom: 20px; color: #00ff00; }
-        button { padding: 15px 30px; font-size: 1rem; cursor: pointer; background: #444; color: white; border: none; border-radius: 5px; }
-        button:active { background: #666; }
+        body { 
+            font-family: 'Courier New', Courier, monospace; 
+            background: #000; 
+            color: #0f0; 
+            text-align: center; 
+            margin: 0;
+            padding: 20px;
+        }
+        .container { border: 2px solid #333; padding: 20px; border-radius: 15px; }
+        .label { font-size: 1rem; text-transform: uppercase; color: #008000; }
+        .value { font-size: 5rem; font-weight: bold; margin-bottom: 10px; text-shadow: 0 0 10px #0f0; }
+        .unit { font-size: 1.5rem; margin-bottom: 30px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; margin-top: 20px; }
+        button { 
+            background: #111; color: #0f0; border: 1px solid #0f0; 
+            padding: 15px 30px; font-size: 1rem; border-radius: 5px; margin: 10px;
+        }
+        button:active { background: #0f0; color: #000; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="label">Viteză (km/h)</div>
+        <div class="label">Viteză</div>
         <div id="speed" class="value">0.0</div>
+        <div class="unit">KM/H</div>
 
-        <div class="label">Distanță (km)</div>
-        <div id="distance" class="value">0.00</div>
+        <div class="stats-grid">
+            <div>
+                <div class="label">Distanță</div>
+                <div id="distance" style="font-size: 2rem; font-weight: bold;">0.00</div>
+                <div class="unit">KM</div>
+            </div>
+            <div>
+                <div class="label">Timp</div>
+                <div id="timer" style="font-size: 2rem; font-weight: bold;">00:00</div>
+                <div class="unit">MIN</div>
+            </div>
+        </div>
 
-        <button onclick="startTracking()">Start Călătorie</button>
+        <button onclick="startTracking()">START</button>
+        <button onclick="resetStats()">RESET</button>
     </div>
+
 <script>
     let totalDistance = 0;
     let lastPosition = null;
+    let startTime;
+    let timerInterval;
+    let wakeLock = null;
+
+    // Funcție pentru a ține ecranul aprins
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLock = await navigator.wakeLock.request('screen');
+            }
+        } catch (err) {
+            console.log("WakeLock error: " + err.message);
+        }
+    }
 
     function startTracking() {
+        requestWakeLock();
+        if (!startTime) {
+            startTime = Date.now();
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+        
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(updateStats, handleError, {
-                enableHighAccuracy: true
+                enableHighAccuracy: true,
+                maximumAge: 1000
             });
-        } else {
-            alert("GPS-ul nu este suportat de acest dispozitiv.");
         }
     }
 
     function updateStats(position) {
         const coords = position.coords;
-
-        // 1. Viteza (convertim din m/s în km/h)
-        // Formula: m/s * 3.6 = km/h
         let speedKmH = coords.speed ? (coords.speed * 3.6).toFixed(1) : 0;
         document.getElementById('speed').innerText = speedKmH;
 
-        // 2. Distanța (dacă avem o poziție anterioară)
-        if (lastPosition) {
+        if (lastPosition && speedKmH > 0.5) { // Calculăm distanța doar dacă ne mișcăm
             const d = calculateDistance(
                 lastPosition.latitude, lastPosition.longitude,
                 coords.latitude, coords.longitude
@@ -57,20 +97,28 @@
         lastPosition = coords;
     }
 
-    // Formula Haversine pentru distanța între puncte GPS
+    function updateTimer() {
+        const diff = Date.now() - startTime;
+        const minutes = Math.floor(diff / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        document.getElementById('timer').innerText = 
+            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+
     function calculateDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371; // Raza Pământului în km
+        const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                   Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function handleError(error) {
-        console.warn("Eroare GPS: " + error.message);
+    function resetStats() {
+        location.reload(); // Cea mai simplă metodă de reset
     }
+
+    function handleError(error) { console.warn(error.message); }
 </script>
 </body>
 </html>
