@@ -3,103 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bike Computer & Tracker</title>
+    <title>Pro Bike Computer</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { background: #121212; color: #00ff00; font-family: sans-serif; text-align: center; margin: 0; }
-        .stats { display: flex; justify-content: space-around; padding: 20px; background: #1e1e1e; }
-        .label { font-size: 0.8rem; color: #888; }
-        .value { font-size: 2rem; font-weight: bold; }
-        #map { height: 400px; width: 100%; border-bottom: 2px solid #00ff00; }
-        .controls { padding: 20px; }
-        button { padding: 15px 30px; font-size: 1.2rem; background: #00ff00; color: #000; border: none; border-radius: 50px; font-weight: bold; }
+        body { background: #000; color: #fff; font-family: 'Segoe UI', Roboto, sans-serif; margin: 0; overflow-x: hidden; }
+        
+        /* Cifre Gigante pentru Viteză */
+        .main-stats { background: #111; padding: 20px 10px; border-bottom: 2px solid #222; }
+        .label { font-size: 1rem; color: #aaa; text-transform: uppercase; letter-spacing: 2px; }
+        .speed-value { font-size: 8rem; font-weight: 900; line-height: 1; color: #00ff00; }
+        .dist-value { font-size: 3rem; font-weight: bold; color: #fff; }
+        .unit { font-size: 1.5rem; color: #666; }
+
+        #map { height: 250px; width: 100%; filter: grayscale(1) invert(1); } /* Aspect Dark Mode */
+        
+        .controls { display: flex; gap: 10px; padding: 20px; background: #000; }
+        button { flex: 1; padding: 20px; font-size: 1.1rem; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; }
+        #startBtn { background: #00ff00; color: #000; }
+        #stopBtn { background: #ff4444; color: #fff; display: none; }
     </style>
 </head>
 <body>
 
-    <div id="map"></div>
-
-    <div class="stats">
-        <div>
-            <div class="label">VITEZĂ</div>
-            <div id="speed" class="value">0.0 km/h</div>
-        </div>
-        <div>
-            <div class="label">DISTANȚĂ</div>
-            <div id="distance" class="value">0.00 km</div>
+    <div class="main-stats">
+        <div class="label">Viteză</div>
+        <div class="speed-value" id="speed">0.0<span class="unit"> km/h</span></div>
+        
+        <div style="margin-top: 20px;">
+            <div class="label">Distanță</div>
+            <div class="dist-value" id="distance">0.00<span class="unit"> km</span></div>
         </div>
     </div>
 
+    <div id="map"></div>
+
     <div class="controls">
-        <button id="startBtn" onclick="startTracking()">START TRASEU</button>
+        <button id="startBtn" onclick="startRide()">START CURSĂ</button>
+        <button id="stopBtn" onclick="stopRide()">SALVEAZĂ GPX</button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        let map, routeLine, marker;
+        let map, routeLine, wakeLock = null;
         let pathCoords = [];
-        let totalDistance = 0;
+        let totalDist = 0;
         let lastPos = null;
 
-        // Inițializăm harta cu o poziție generică
-        map = L.map('map').setView([44.4268, 26.1025], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+        // Inițializare Hartă
+        map = L.map('map', { zoomControl: false }).setView([44.43, 26.10], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        routeLine = L.polyline([], {color: '#00ff00', weight: 6}).addTo(map);
 
-        routeLine = L.polyline([], {color: '#00ff00', weight: 5}).addTo(map);
-
-        function startTracking() {
-            document.getElementById('startBtn').style.display = 'none';
-            if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition(updatePosition, handleError, {
-                    enableHighAccuracy: true,
-                    maximumAge: 1000
-                });
-            }
+        // Funcția de menținere a ecranului aprins
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log("Ecranul va rămâne aprins!");
+                }
+            } catch (err) { console.error(`${err.name}, ${err.message}`); }
         }
 
-        function updatePosition(position) {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            const currentPoint = [lat, lon];
+        function startRide() {
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'block';
+            
+            requestWakeLock(); // Activăm Wake Lock
 
-            // 1. Actualizăm harta
-            pathCoords.push(currentPoint);
-            routeLine.setLatLngs(pathCoords);
-            map.panTo(currentPoint);
+            navigator.geolocation.watchPosition(pos => {
+                const { latitude, longitude, speed } = pos.coords;
+                const currentPoint = [latitude, longitude];
 
-            // Adăugăm sau mutăm markerul poziției actuale
-            if (!marker) {
-                marker = L.marker(currentPoint).addTo(map);
-            } else {
-                marker.setLatLng(currentPoint);
-            }
+                // Update Viteză (m/s -> km/h)
+                let s = speed > 0 ? (speed * 3.6).toFixed(1) : "0.0";
+                document.getElementById('speed').innerHTML = `${s}<span class="unit"> km/h</span>`;
 
-            // 2. Calculăm viteza (km/h)
-            let speedKmh = ((position.coords.speed || 0) * 3.6).toFixed(1);
-            document.getElementById('speed').innerText = `${speedKmh} km/h`;
+                // Update Distanță și Hartă
+                pathCoords.push({lat: latitude, lon: longitude, time: new Date().toISOString()});
+                routeLine.addLatLng(currentPoint);
+                map.panTo(currentPoint);
 
-            // 3. Calculăm distanța
-            if (lastPos) {
-                let d = calculateDistance(lastPos.lat, lastPos.lon, lat, lon);
-                totalDistance += d;
-                document.getElementById('distance').innerText = `${totalDistance.toFixed(2)} km`;
-            }
-            lastPos = {lat, lon};
+                if (lastPos) {
+                    totalDist += calculateDistance(lastPos.lat, lastPos.lon, latitude, longitude);
+                    document.getElementById('distance').innerHTML = `${totalDist.toFixed(2)}<span class="unit"> km</span>`;
+                }
+                lastPos = {lat: latitude, lon: longitude};
+            }, null, { enableHighAccuracy: true });
         }
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; 
-            let dLat = (lat2 - lat1) * Math.PI / 180;
-            let dLon = (lon2 - lon1) * Math.PI / 180;
-            let a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
+            const R = 6371;
+            const dLat = (lat2-lat1) * Math.PI/180;
+            const dLon = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        function handleError(err) { console.error(err); }
+        function stopRide() {
+            if (pathCoords.length < 2) return alert("Traseu prea scurt!");
+            
+            // Generare fișier GPX
+            let gpxContent = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="MyBikeApp">
+  <trk><trkseg>
+    ${pathCoords.map(p => `<trkpt lat="${p.lat}" lon="${p.lon}"><time>${p.time}</time></trkpt>`).join('')}
+  </trkseg></trk>
+</gpx>`;
+
+            const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cursa_${new Date().getTime()}.gpx`;
+            a.click();
+
+            if (wakeLock) wakeLock.release(); // Eliberăm ecranul
+            location.reload(); // Resetăm aplicația
+        }
     </script>
 </body>
 </html>
