@@ -3,24 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CicloPro v2</title>
+    <title>CicloPro v3</title>
     <style>
         body { 
             font-family: 'Courier New', Courier, monospace; 
-            background: #000; 
-            color: #0f0; 
-            text-align: center; 
-            margin: 0;
-            padding: 20px;
+            background: #000; color: #0f0; text-align: center; margin: 0; padding: 10px;
         }
-        .container { border: 2px solid #333; padding: 20px; border-radius: 15px; }
-        .label { font-size: 1rem; text-transform: uppercase; color: #008000; }
-        .value { font-size: 5rem; font-weight: bold; margin-bottom: 10px; text-shadow: 0 0 10px #0f0; }
-        .unit { font-size: 1.5rem; margin-bottom: 30px; }
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; margin-top: 20px; }
+        .container { border: 2px solid #333; padding: 15px; border-radius: 15px; max-width: 400px; margin: auto; }
+        .label { font-size: 0.8rem; text-transform: uppercase; color: #008000; margin-top: 10px; }
+        .value { font-size: 4.5rem; font-weight: bold; text-shadow: 0 0 10px #0f0; line-height: 1; }
+        .unit { font-size: 1.2rem; margin-bottom: 15px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #222; padding-top: 10px; }
+        .mini-value { font-size: 1.8rem; font-weight: bold; }
         button { 
             background: #111; color: #0f0; border: 1px solid #0f0; 
-            padding: 15px 30px; font-size: 1rem; border-radius: 5px; margin: 10px;
+            padding: 12px 20px; font-size: 1rem; border-radius: 5px; margin: 10px 5px; width: 40%;
         }
         button:active { background: #0f0; color: #000; }
     </style>
@@ -34,13 +31,23 @@
         <div class="stats-grid">
             <div>
                 <div class="label">Distanță</div>
-                <div id="distance" style="font-size: 2rem; font-weight: bold;">0.00</div>
+                <div id="distance" class="mini-value">0.00</div>
                 <div class="unit">KM</div>
             </div>
             <div>
                 <div class="label">Timp</div>
-                <div id="timer" style="font-size: 2rem; font-weight: bold;">00:00</div>
+                <div id="timer" class="mini-value">00:00</div>
                 <div class="unit">MIN</div>
+            </div>
+            <div>
+                <div class="label">Altitudine</div>
+                <div id="altitude" class="mini-value">---</div>
+                <div class="unit">M</div>
+            </div>
+            <div>
+                <div class="label">Calorii</div>
+                <div id="calories" class="mini-value">0</div>
+                <div class="unit">KCAL</div>
             </div>
         </div>
 
@@ -53,16 +60,11 @@
     let lastPosition = null;
     let startTime;
     let timerInterval;
-    let wakeLock = null;
+    let weightKg = 75; // Poți schimba aici cu greutatea ta
 
-    // Funcție pentru a ține ecranul aprins
     async function requestWakeLock() {
-        try {
-            if ('wakeLock' in navigator) {
-                wakeLock = await navigator.wakeLock.request('screen');
-            }
-        } catch (err) {
-            console.log("WakeLock error: " + err.message);
+        if ('wakeLock' in navigator) {
+            try { await navigator.wakeLock.request('screen'); } catch (err) {}
         }
     }
 
@@ -72,53 +74,53 @@
             startTime = Date.now();
             timerInterval = setInterval(updateTimer, 1000);
         }
-        
-        if ("geolocation" in navigator) {
-            navigator.geolocation.watchPosition(updateStats, handleError, {
-                enableHighAccuracy: true,
-                maximumAge: 1000
-            });
-        }
+        navigator.geolocation.watchPosition(updateStats, (e) => console.log(e), {
+            enableHighAccuracy: true
+        });
     }
 
     function updateStats(position) {
         const coords = position.coords;
+        
+        // 1. Viteză
         let speedKmH = coords.speed ? (coords.speed * 3.6).toFixed(1) : 0;
         document.getElementById('speed').innerText = speedKmH;
 
-        if (lastPosition && speedKmH > 0.5) { // Calculăm distanța doar dacă ne mișcăm
-            const d = calculateDistance(
-                lastPosition.latitude, lastPosition.longitude,
-                coords.latitude, coords.longitude
-            );
+        // 2. Altitudine
+        if (coords.altitude !== null) {
+            document.getElementById('altitude').innerText = Math.round(coords.altitude);
+        }
+
+        // 3. Distanță
+        if (lastPosition && speedKmH > 0.5) {
+            const d = calculateDistance(lastPosition.latitude, lastPosition.longitude, coords.latitude, coords.longitude);
             totalDistance += d;
             document.getElementById('distance').innerText = totalDistance.toFixed(2);
+            
+            // 4. Calorii (Aproximare: 0.05 kcal per kg per km)
+            // O formulă simplă: Greutate * Distanță * Coeficient (aprox 0.75 pentru bicicletă)
+            let kcal = totalDistance * weightKg * 0.75;
+            document.getElementById('calories').innerText = Math.round(kcal);
         }
         lastPosition = coords;
     }
 
     function updateTimer() {
         const diff = Date.now() - startTime;
-        const minutes = Math.floor(diff / 60000);
-        const seconds = Math.floor((diff % 60000) / 1000);
-        document.getElementById('timer').innerText = 
-            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        const mins = Math.floor(diff / 60000).toString().padStart(2, '0');
+        const secs = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+        document.getElementById('timer').innerText = `${mins}:${secs}`;
     }
 
     function calculateDistance(lat1, lon1, lat2, lon2) {
         const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function resetStats() {
-        location.reload(); // Cea mai simplă metodă de reset
-    }
-
-    function handleError(error) { console.warn(error.message); }
+    function resetStats() { location.reload(); }
 </script>
 </body>
 </html>
