@@ -3,103 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CicloPro v3</title>
+    <title>CicloPro v4</title>
     <style>
-        body { 
-            font-family: 'Courier New', Courier, monospace; 
-            background: #000; color: #0f0; text-align: center; margin: 0; padding: 10px;
-        }
+        body { font-family: 'Courier New', monospace; background: #000; color: #0f0; text-align: center; padding: 10px; }
         .container { border: 2px solid #333; padding: 15px; border-radius: 15px; max-width: 400px; margin: auto; }
         .label { font-size: 0.8rem; text-transform: uppercase; color: #008000; margin-top: 10px; }
         .value { font-size: 4.5rem; font-weight: bold; text-shadow: 0 0 10px #0f0; line-height: 1; }
         .unit { font-size: 1.2rem; margin-bottom: 15px; }
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #222; padding-top: 10px; }
         .mini-value { font-size: 1.8rem; font-weight: bold; }
+        
+        /* Secțiune Setări și Istoric */
+        .settings { margin: 20px 0; padding: 10px; border: 1px dashed #444; }
+        input { background: #111; color: #0f0; border: 1px solid #0f0; padding: 5px; width: 60px; text-align: center; }
+        .history { margin-top: 20px; text-align: left; font-size: 0.8rem; border-top: 2px solid #0f0; padding-top: 10px; }
+        
         button { 
             background: #111; color: #0f0; border: 1px solid #0f0; 
-            padding: 12px 20px; font-size: 1rem; border-radius: 5px; margin: 10px 5px; width: 40%;
+            padding: 12px; font-size: 0.9rem; border-radius: 5px; margin: 5px; width: 45%;
         }
+        button.save { border-color: #ff0; color: #ff0; width: 93%; }
         button:active { background: #0f0; color: #000; }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="settings">
+            Greutate: <input type="number" id="userWeight" value="75" onchange="saveWeight()"> kg
+        </div>
+
         <div class="label">Viteză</div>
         <div id="speed" class="value">0.0</div>
         <div class="unit">KM/H</div>
 
         <div class="stats-grid">
-            <div>
-                <div class="label">Distanță</div>
-                <div id="distance" class="mini-value">0.00</div>
-                <div class="unit">KM</div>
-            </div>
-            <div>
-                <div class="label">Timp</div>
-                <div id="timer" class="mini-value">00:00</div>
-                <div class="unit">MIN</div>
-            </div>
-            <div>
-                <div class="label">Altitudine</div>
-                <div id="altitude" class="mini-value">---</div>
-                <div class="unit">M</div>
-            </div>
-            <div>
-                <div class="label">Calorii</div>
-                <div id="calories" class="mini-value">0</div>
-                <div class="unit">KCAL</div>
-            </div>
+            <div><div class="label">Dist.</div><div id="distance" class="mini-value">0.00</div><div class="unit">KM</div></div>
+            <div><div class="label">Timp</div><div id="timer" class="mini-value">00:00</div><div class="unit">MIN</div></div>
+            <div><div class="label">Alt.</div><div id="altitude" class="mini-value">---</div><div class="unit">M</div></div>
+            <div><div class="label">Calorii</div><div id="calories" class="mini-value">0</div><div class="unit">KCAL</div></div>
         </div>
 
         <button onclick="startTracking()">START</button>
         <button onclick="resetStats()">RESET</button>
+        <button class="save" onclick="saveRide()">SALVEAZĂ CURSA</button>
+
+        <div class="history">
+            <strong>ISTORIC ULTIMELE CURSE:</strong>
+            <ul id="historyList"></ul>
+        </div>
     </div>
 
 <script>
-    let totalDistance = 0;
-    let lastPosition = null;
-    let startTime;
-    let timerInterval;
-    let weightKg = 75; // Poți schimba aici cu greutatea ta
+    let totalDistance = 0, lastPosition = null, startTime, timerInterval;
 
-    async function requestWakeLock() {
-        if ('wakeLock' in navigator) {
-            try { await navigator.wakeLock.request('screen'); } catch (err) {}
-        }
+    // Încărcăm greutatea salvată la pornire
+    window.onload = () => {
+        if(localStorage.getItem('weight')) document.getElementById('userWeight').value = localStorage.getItem('weight');
+        displayHistory();
+    };
+
+    function saveWeight() {
+        localStorage.setItem('weight', document.getElementById('userWeight').value);
     }
 
-    function startTracking() {
-        requestWakeLock();
-        if (!startTime) {
-            startTime = Date.now();
-            timerInterval = setInterval(updateTimer, 1000);
-        }
-        navigator.geolocation.watchPosition(updateStats, (e) => console.log(e), {
-            enableHighAccuracy: true
-        });
+    async function startTracking() {
+        if ('wakeLock' in navigator) await navigator.wakeLock.request('screen');
+        if (!startTime) { startTime = Date.now(); timerInterval = setInterval(updateTimer, 1000); }
+        navigator.geolocation.watchPosition(updateStats, (e) => console.log(e), { enableHighAccuracy: true });
     }
 
     function updateStats(position) {
         const coords = position.coords;
-        
-        // 1. Viteză
         let speedKmH = coords.speed ? (coords.speed * 3.6).toFixed(1) : 0;
         document.getElementById('speed').innerText = speedKmH;
+        if (coords.altitude !== null) document.getElementById('altitude').innerText = Math.round(coords.altitude);
 
-        // 2. Altitudine
-        if (coords.altitude !== null) {
-            document.getElementById('altitude').innerText = Math.round(coords.altitude);
-        }
-
-        // 3. Distanță
         if (lastPosition && speedKmH > 0.5) {
             const d = calculateDistance(lastPosition.latitude, lastPosition.longitude, coords.latitude, coords.longitude);
             totalDistance += d;
             document.getElementById('distance').innerText = totalDistance.toFixed(2);
-            
-            // 4. Calorii (Aproximare: 0.05 kcal per kg per km)
-            // O formulă simplă: Greutate * Distanță * Coeficient (aprox 0.75 pentru bicicletă)
-            let kcal = totalDistance * weightKg * 0.75;
+            let kcal = totalDistance * document.getElementById('userWeight').value * 0.75;
             document.getElementById('calories').innerText = Math.round(kcal);
         }
         lastPosition = coords;
@@ -120,7 +103,26 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function resetStats() { location.reload(); }
+    function saveRide() {
+        const ride = {
+            date: new Date().toLocaleDateString(),
+            dist: document.getElementById('distance').innerText,
+            kcal: document.getElementById('calories').innerText
+        };
+        let rides = JSON.parse(localStorage.getItem('rides') || "[]");
+        rides.unshift(ride); // Adaugă la începutul listei
+        localStorage.setItem('rides', JSON.stringify(rides.slice(0, 5))); // Salvăm doar ultimele 5
+        displayHistory();
+        alert("Cursă salvată în memoria telefonului!");
+    }
+
+    function displayHistory() {
+        let rides = JSON.parse(localStorage.getItem('rides') || "[]");
+        document.getElementById('historyList').innerHTML = rides.map(r => 
+            `<li>${r.date}: ${r.dist}km | ${r.kcal}kcal</li>`).join('');
+    }
+
+    function resetStats() { if(confirm("Resetezi cursa curentă?")) location.reload(); }
 </script>
 </body>
 </html>
