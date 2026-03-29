@@ -2,160 +2,122 @@
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CicloGaraj v5</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CicloSimple</title>
     <style>
-        body { font-family: 'Courier New', monospace; background: #000; color: #0f0; text-align: center; padding: 10px; margin: 0; }
-        .container { border: 2px solid #333; padding: 15px; border-radius: 15px; max-width: 400px; margin: auto; }
-        .label { font-size: 0.7rem; text-transform: uppercase; color: #008000; margin-top: 8px; }
-        .value { font-size: 4rem; font-weight: bold; text-shadow: 0 0 10px #0f0; line-height: 1; margin: 5px 0; }
-        .unit { font-size: 1rem; margin-bottom: 10px; }
+        :root { --neon: #0f0; --dark: #000; --gray: #1a1a1a; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--dark); color: var(--neon); margin: 0; overflow: hidden; text-align: center; }
         
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid #222; padding-top: 10px; }
-        .mini-value { font-size: 1.6rem; font-weight: bold; }
-
-        /* Stiluri pentru Garaj */
-        .garage-settings { background: #111; padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #333; }
-        select, input { background: #000; color: #0f0; border: 1px solid #0f0; padding: 5px; font-family: inherit; }
-        .odo-label { font-size: 0.8rem; color: #ff0; margin-top: 5px; }
-
-        .history { margin-top: 20px; text-align: left; font-size: 0.75rem; border-top: 2px solid #0f0; padding-top: 10px; max-height: 150px; overflow-y: auto; }
+        /* Ecran Principal */
+        .main-display { height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .speed-val { font-size: 9rem; font-weight: 900; line-height: 1; }
+        .speed-unit { font-size: 1.5rem; letter-spacing: 5px; margin-bottom: 20px; }
         
-        button { 
-            background: #111; color: #0f0; border: 1px solid #0f0; 
-            padding: 12px; font-size: 0.9rem; border-radius: 5px; margin: 5px; width: 45%;
-        }
-        button.save { border-color: #ff0; color: #ff0; width: 93%; }
-        button:active { background: #0f0; color: #000; }
+        /* Bară Date */
+        .data-bar { display: flex; width: 100%; justify-content: space-around; padding: 15px 0; background: rgba(255,255,255,0.05); margin-bottom: 20px; }
+        .data-label { font-size: 0.7rem; text-transform: uppercase; color: #008000; }
+        .data-val { font-size: 1.5rem; font-weight: bold; }
+
+        /* Setări */
+        #settingsPanel { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark); z-index: 100; display: none; padding: 30px; box-sizing: border-box; }
+        .btn { background: var(--gray); color: var(--neon); border: 1px solid var(--neon); padding: 15px; border-radius: 10px; width: 80%; margin: 10px 0; font-size: 1rem; }
+        .config-btn { position: absolute; top: 20px; right: 20px; font-size: 1.5rem; z-index: 50; }
+        input { background: #000; color: #0f0; border: 1px solid #0f0; padding: 10px; font-size: 1.2rem; width: 80px; text-align: center; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="garage-settings">
-            <label class="label">Alege Bicicleta:</label><br>
-            <select id="bikeSelect" onchange="loadBikeProfile()">
-                <option value="MTB">MTB</option>
-                <option value="Cursiera">Cursieră</option>
-                <option value="Oras">Oraș</option>
-            </select>
-            <input type="number" id="bikeWeight" value="12" onchange="saveBikeProfile()"> <span style="font-size:0.8rem">kg</span>
-            <div class="odo-label">ODO Total: <span id="totalOdo">0.00</span> km</div>
+
+    <div class="config-btn" onclick="toggleSettings()">⚙️</div>
+
+    <div class="main-display">
+        <div class="speed-val" id="speed">0</div>
+        <div class="speed-unit">KM/H</div>
+        
+        <div class="data-bar">
+            <div class="data-item"><div class="data-label">Distanță</div><div class="data-val" id="distance">0.0</div><div class="data-label">KM</div></div>
+            <div class="data-item"><div class="data-label">Calorii</div><div class="data-val" id="calories">0</div><div class="data-label">KCAL</div></div>
+            <div class="data-item"><div class="data-label">Timp</div><div class="data-val" id="timer">00:00</div><div class="data-label">MIN</div></div>
         </div>
+        
+        <button class="btn" id="startBtn" onclick="startTracking()">START SESIUNE</button>
+    </div>
 
-        <div class="label">Viteză</div>
-        <div id="speed" class="value">0.0</div>
-        <div class="unit">KM/H</div>
-
-        <div class="stats-grid">
-            <div><div class="label">Dist. Cursă</div><div id="distance" class="mini-value">0.00</div><div class="unit">KM</div></div>
-            <div><div class="label">Timp</div><div id="timer" class="mini-value">00:00</div><div class="unit">MIN</div></div>
-            <div><div class="label">Alt.</div><div id="altitude" class="mini-value">---</div><div class="unit">M</div></div>
-            <div><div class="label">Calorii</div><div id="calories" class="mini-value">0</div><div class="unit">KCAL</div></div>
+    <div id="settingsPanel">
+        <div style="text-align: right; font-size: 2.5rem;" onclick="toggleSettings()">✕</div>
+        <h2>SETĂRI</h2>
+        <div style="margin: 40px 0;">
+            <label>GREUTATE TOTALĂ (KG):</label><br><br>
+            <input type="number" id="totalWeight" value="90" onchange="saveSettings()">
+            <p style="font-size: 0.8rem; color: #666;">(Tu + Bicicletă + Echipament)</p>
         </div>
-
-        <button onclick="startTracking()">START</button>
-        <button onclick="resetStats()">RESET</button>
-        <button class="save" onclick="saveRide()">FINALIZARE & SALVARE</button>
-
-        <div class="history">
-            <strong>ISTORIC CURSE:</strong>
-            <ul id="historyList" style="list-style: none; padding: 0;"></ul>
-        </div>
+        <hr border="0" style="border-top: 1px solid #222;">
+        <button class="btn" onclick="saveAndReset()" style="color: #ff0; border-color: #ff0;">FINALIZARE & RESET</button>
+        <div id="history" style="margin-top: 30px; font-size: 0.9rem; text-align: left;"></div>
     </div>
 
 <script>
-    let totalDistance = 0, lastPosition = null, startTime, timerInterval, watchId;
+    let totalDist = 0, lastPos = null, startTime, timerInt, watchId;
 
     window.onload = () => {
-        loadBikeProfile();
-        displayHistory();
+        if(localStorage.getItem('userWeight')) document.getElementById('totalWeight').value = localStorage.getItem('userWeight');
+        showHistory();
     };
 
-    // Încarcă setările pentru bicicleta selectată
-    function loadBikeProfile() {
-        const bike = document.getElementById('bikeSelect').value;
-        const savedData = JSON.parse(localStorage.getItem('bike_' + bike) || '{"weight": 12, "odo": 0}');
-        document.getElementById('bikeWeight').value = savedData.weight;
-        document.getElementById('totalOdo').innerText = parseFloat(savedData.odo).toFixed(2);
+    function toggleSettings() {
+        const p = document.getElementById('settingsPanel');
+        p.style.display = p.style.display === 'block' ? 'none' : 'block';
     }
 
-    // Salvează greutatea manual dacă se schimbă
-    function saveBikeProfile() {
-        const bike = document.getElementById('bikeSelect').value;
-        const odo = parseFloat(document.getElementById('totalOdo').innerText);
-        const weight = document.getElementById('bikeWeight').value;
-        localStorage.setItem('bike_' + bike, JSON.stringify({weight: weight, odo: odo}));
+    function saveSettings() {
+        localStorage.setItem('userWeight', document.getElementById('totalWeight').value);
     }
 
     async function startTracking() {
         if ('wakeLock' in navigator) await navigator.wakeLock.request('screen');
-        if (!startTime) { startTime = Date.now(); timerInterval = setInterval(updateTimer, 1000); }
-        watchId = navigator.geolocation.watchPosition(updateStats, (e) => console.log(e), { enableHighAccuracy: true });
+        document.getElementById('startBtn').style.display = 'none';
+        startTime = Date.now();
+        timerInt = setInterval(() => {
+            const diff = Date.now() - startTime;
+            const m = Math.floor(diff / 60000).toString().padStart(2, '0');
+            const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+            document.getElementById('timer').innerText = `${m}:${s}`;
+        }, 1000);
+
+        watchId = navigator.geolocation.watchPosition(pos => {
+            const c = pos.coords;
+            document.getElementById('speed').innerText = c.speed ? Math.round(c.speed * 3.6) : 0;
+            
+            if (lastPos && (c.speed * 3.6) > 0.5) {
+                const R = 6371;
+                const dLat = (c.latitude - lastPos.latitude) * Math.PI / 180;
+                const dLon = (c.longitude - lastPos.longitude) * Math.PI / 180;
+                const a = Math.sin(dLat/2)**2 + Math.cos(lastPos.latitude*Math.PI/180)*Math.cos(c.latitude*Math.PI/180)*Math.sin(dLon/2)**2;
+                const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                
+                totalDist += d;
+                document.getElementById('distance').innerText = totalDist.toFixed(1);
+                // Formula solicitată: Greutate Totală * Distanță * 0.15
+                const kcal = totalDist * parseFloat(document.getElementById('totalWeight').value) * 0.15;
+                document.getElementById('calories').innerText = Math.round(kcal);
+            }
+            lastPos = c;
+        }, null, { enableHighAccuracy: true });
     }
 
-    function updateStats(position) {
-        const coords = position.coords;
-        let speedKmH = coords.speed ? (coords.speed * 3.6).toFixed(1) : 0;
-        document.getElementById('speed').innerText = speedKmH;
-        if (coords.altitude !== null) document.getElementById('altitude').innerText = Math.round(coords.altitude);
-
-        if (lastPosition && speedKmH > 0.1) {
-            const d = calculateDistance(lastPosition.latitude, lastPosition.longitude, coords.latitude, coords.longitude);
-            totalDistance += d;
-            document.getElementById('distance').innerText = totalDistance.toFixed(2);
-            let kcal = totalDistance * (parseFloat(document.getElementById('bikeWeight').value) + 75) * 0.15; 
-            document.getElementById('calories').innerText = Math.round(kcal);
+    function saveAndReset() {
+        if(totalDist > 0) {
+            const rides = JSON.parse(localStorage.getItem('myRides') || "[]");
+            rides.unshift({ date: new Date().toLocaleDateString(), km: totalDist.toFixed(1), kcal: document.getElementById('calories').innerText });
+            localStorage.setItem('myRides', JSON.stringify(rides.slice(0, 5)));
         }
-        lastPosition = coords;
+        location.reload();
     }
 
-    function updateTimer() {
-        const diff = Date.now() - startTime;
-        const mins = Math.floor(diff / 60000).toString().padStart(2, '0');
-        const secs = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
-        document.getElementById('timer').innerText = `${mins}:${secs}`;
+    function showHistory() {
+        const rides = JSON.parse(localStorage.getItem('myRides') || "[]");
+        document.getElementById('history').innerHTML = "<b>ULTIMELE CURSE:</b><br>" + 
+            rides.map(r => `${r.date}: ${r.km} km | ${r.kcal} kcal`).join('<br>');
     }
-
-    function calculateDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
-
-    function saveRide() {
-        const bike = document.getElementById('bikeSelect').value;
-        const dist = parseFloat(document.getElementById('distance').innerText);
-        if(dist <= 0) return alert("Nu ai înregistrat nicio distanță!");
-
-        // Update ODO
-        let bikeData = JSON.parse(localStorage.getItem('bike_' + bike));
-        bikeData.odo = parseFloat(bikeData.odo) + dist;
-        localStorage.setItem('bike_' + bike, JSON.stringify(bikeData));
-        
-        // Salvare în istoric
-        const ride = {
-            bike: bike,
-            date: new Date().toLocaleDateString(),
-            dist: dist.toFixed(2),
-            kcal: document.getElementById('calories').innerText
-        };
-        let rides = JSON.parse(localStorage.getItem('rides') || "[]");
-        rides.unshift(ride);
-        localStorage.setItem('rides', JSON.stringify(rides.slice(0, 10)));
-        
-        alert("Cursă salvată pentru " + bike + "!");
-        location.reload(); 
-    }
-
-    function displayHistory() {
-        let rides = JSON.parse(localStorage.getItem('rides') || "[]");
-        document.getElementById('historyList').innerHTML = rides.map(r => 
-            `<li style="border-bottom: 1px solid #222; padding: 3px 0;">[${r.bike}] ${r.date}: ${r.dist}km | ${r.kcal}kcal</li>`).join('');
-    }
-
-    function resetStats() { if(confirm("Resetezi cursa?")) location.reload(); }
 </script>
 </body>
 </html>
