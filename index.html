@@ -3,20 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CicloPro v4</title>
+    <title>CicloGaraj v5</title>
     <style>
-        body { font-family: 'Courier New', monospace; background: #000; color: #0f0; text-align: center; padding: 10px; }
+        body { font-family: 'Courier New', monospace; background: #000; color: #0f0; text-align: center; padding: 10px; margin: 0; }
         .container { border: 2px solid #333; padding: 15px; border-radius: 15px; max-width: 400px; margin: auto; }
-        .label { font-size: 0.8rem; text-transform: uppercase; color: #008000; margin-top: 10px; }
-        .value { font-size: 4.5rem; font-weight: bold; text-shadow: 0 0 10px #0f0; line-height: 1; }
-        .unit { font-size: 1.2rem; margin-bottom: 15px; }
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #222; padding-top: 10px; }
-        .mini-value { font-size: 1.8rem; font-weight: bold; }
+        .label { font-size: 0.7rem; text-transform: uppercase; color: #008000; margin-top: 8px; }
+        .value { font-size: 4rem; font-weight: bold; text-shadow: 0 0 10px #0f0; line-height: 1; margin: 5px 0; }
+        .unit { font-size: 1rem; margin-bottom: 10px; }
         
-        /* Secțiune Setări și Istoric */
-        .settings { margin: 20px 0; padding: 10px; border: 1px dashed #444; }
-        input { background: #111; color: #0f0; border: 1px solid #0f0; padding: 5px; width: 60px; text-align: center; }
-        .history { margin-top: 20px; text-align: left; font-size: 0.8rem; border-top: 2px solid #0f0; padding-top: 10px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid #222; padding-top: 10px; }
+        .mini-value { font-size: 1.6rem; font-weight: bold; }
+
+        /* Stiluri pentru Garaj */
+        .garage-settings { background: #111; padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #333; }
+        select, input { background: #000; color: #0f0; border: 1px solid #0f0; padding: 5px; font-family: inherit; }
+        .odo-label { font-size: 0.8rem; color: #ff0; margin-top: 5px; }
+
+        .history { margin-top: 20px; text-align: left; font-size: 0.75rem; border-top: 2px solid #0f0; padding-top: 10px; max-height: 150px; overflow-y: auto; }
         
         button { 
             background: #111; color: #0f0; border: 1px solid #0f0; 
@@ -28,8 +31,15 @@
 </head>
 <body>
     <div class="container">
-        <div class="settings">
-            Greutate: <input type="number" id="userWeight" value="75" onchange="saveWeight()"> kg
+        <div class="garage-settings">
+            <label class="label">Alege Bicicleta:</label><br>
+            <select id="bikeSelect" onchange="loadBikeProfile()">
+                <option value="MTB">MTB</option>
+                <option value="Cursiera">Cursieră</option>
+                <option value="Oras">Oraș</option>
+            </select>
+            <input type="number" id="bikeWeight" value="12" onchange="saveBikeProfile()"> <span style="font-size:0.8rem">kg</span>
+            <div class="odo-label">ODO Total: <span id="totalOdo">0.00</span> km</div>
         </div>
 
         <div class="label">Viteză</div>
@@ -37,7 +47,7 @@
         <div class="unit">KM/H</div>
 
         <div class="stats-grid">
-            <div><div class="label">Dist.</div><div id="distance" class="mini-value">0.00</div><div class="unit">KM</div></div>
+            <div><div class="label">Dist. Cursă</div><div id="distance" class="mini-value">0.00</div><div class="unit">KM</div></div>
             <div><div class="label">Timp</div><div id="timer" class="mini-value">00:00</div><div class="unit">MIN</div></div>
             <div><div class="label">Alt.</div><div id="altitude" class="mini-value">---</div><div class="unit">M</div></div>
             <div><div class="label">Calorii</div><div id="calories" class="mini-value">0</div><div class="unit">KCAL</div></div>
@@ -45,31 +55,42 @@
 
         <button onclick="startTracking()">START</button>
         <button onclick="resetStats()">RESET</button>
-        <button class="save" onclick="saveRide()">SALVEAZĂ CURSA</button>
+        <button class="save" onclick="saveRide()">FINALIZARE & SALVARE</button>
 
         <div class="history">
-            <strong>ISTORIC ULTIMELE CURSE:</strong>
-            <ul id="historyList"></ul>
+            <strong>ISTORIC CURSE:</strong>
+            <ul id="historyList" style="list-style: none; padding: 0;"></ul>
         </div>
     </div>
 
 <script>
-    let totalDistance = 0, lastPosition = null, startTime, timerInterval;
+    let totalDistance = 0, lastPosition = null, startTime, timerInterval, watchId;
 
-    // Încărcăm greutatea salvată la pornire
     window.onload = () => {
-        if(localStorage.getItem('weight')) document.getElementById('userWeight').value = localStorage.getItem('weight');
+        loadBikeProfile();
         displayHistory();
     };
 
-    function saveWeight() {
-        localStorage.setItem('weight', document.getElementById('userWeight').value);
+    // Încarcă setările pentru bicicleta selectată
+    function loadBikeProfile() {
+        const bike = document.getElementById('bikeSelect').value;
+        const savedData = JSON.parse(localStorage.getItem('bike_' + bike) || '{"weight": 12, "odo": 0}');
+        document.getElementById('bikeWeight').value = savedData.weight;
+        document.getElementById('totalOdo').innerText = parseFloat(savedData.odo).toFixed(2);
+    }
+
+    // Salvează greutatea manual dacă se schimbă
+    function saveBikeProfile() {
+        const bike = document.getElementById('bikeSelect').value;
+        const odo = parseFloat(document.getElementById('totalOdo').innerText);
+        const weight = document.getElementById('bikeWeight').value;
+        localStorage.setItem('bike_' + bike, JSON.stringify({weight: weight, odo: odo}));
     }
 
     async function startTracking() {
         if ('wakeLock' in navigator) await navigator.wakeLock.request('screen');
         if (!startTime) { startTime = Date.now(); timerInterval = setInterval(updateTimer, 1000); }
-        navigator.geolocation.watchPosition(updateStats, (e) => console.log(e), { enableHighAccuracy: true });
+        watchId = navigator.geolocation.watchPosition(updateStats, (e) => console.log(e), { enableHighAccuracy: true });
     }
 
     function updateStats(position) {
@@ -78,11 +99,11 @@
         document.getElementById('speed').innerText = speedKmH;
         if (coords.altitude !== null) document.getElementById('altitude').innerText = Math.round(coords.altitude);
 
-        if (lastPosition && speedKmH > 0.5) {
+        if (lastPosition && speedKmH > 0.1) {
             const d = calculateDistance(lastPosition.latitude, lastPosition.longitude, coords.latitude, coords.longitude);
             totalDistance += d;
             document.getElementById('distance').innerText = totalDistance.toFixed(2);
-            let kcal = totalDistance * document.getElementById('userWeight').value * 0.75;
+            let kcal = totalDistance * (parseFloat(document.getElementById('bikeWeight').value) + 75) * 0.15; 
             document.getElementById('calories').innerText = Math.round(kcal);
         }
         lastPosition = coords;
@@ -104,25 +125,37 @@
     }
 
     function saveRide() {
+        const bike = document.getElementById('bikeSelect').value;
+        const dist = parseFloat(document.getElementById('distance').innerText);
+        if(dist <= 0) return alert("Nu ai înregistrat nicio distanță!");
+
+        // Update ODO
+        let bikeData = JSON.parse(localStorage.getItem('bike_' + bike));
+        bikeData.odo = parseFloat(bikeData.odo) + dist;
+        localStorage.setItem('bike_' + bike, JSON.stringify(bikeData));
+        
+        // Salvare în istoric
         const ride = {
+            bike: bike,
             date: new Date().toLocaleDateString(),
-            dist: document.getElementById('distance').innerText,
+            dist: dist.toFixed(2),
             kcal: document.getElementById('calories').innerText
         };
         let rides = JSON.parse(localStorage.getItem('rides') || "[]");
-        rides.unshift(ride); // Adaugă la începutul listei
-        localStorage.setItem('rides', JSON.stringify(rides.slice(0, 5))); // Salvăm doar ultimele 5
-        displayHistory();
-        alert("Cursă salvată în memoria telefonului!");
+        rides.unshift(ride);
+        localStorage.setItem('rides', JSON.stringify(rides.slice(0, 10)));
+        
+        alert("Cursă salvată pentru " + bike + "!");
+        location.reload(); 
     }
 
     function displayHistory() {
         let rides = JSON.parse(localStorage.getItem('rides') || "[]");
         document.getElementById('historyList').innerHTML = rides.map(r => 
-            `<li>${r.date}: ${r.dist}km | ${r.kcal}kcal</li>`).join('');
+            `<li style="border-bottom: 1px solid #222; padding: 3px 0;">[${r.bike}] ${r.date}: ${r.dist}km | ${r.kcal}kcal</li>`).join('');
     }
 
-    function resetStats() { if(confirm("Resetezi cursa curentă?")) location.reload(); }
+    function resetStats() { if(confirm("Resetezi cursa?")) location.reload(); }
 </script>
 </body>
 </html>
