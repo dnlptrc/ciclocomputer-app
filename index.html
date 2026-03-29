@@ -2,122 +2,104 @@
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CicloSimple</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bike Computer & Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --neon: #0f0; --dark: #000; --gray: #1a1a1a; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--dark); color: var(--neon); margin: 0; overflow: hidden; text-align: center; }
-        
-        /* Ecran Principal */
-        .main-display { height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .speed-val { font-size: 9rem; font-weight: 900; line-height: 1; }
-        .speed-unit { font-size: 1.5rem; letter-spacing: 5px; margin-bottom: 20px; }
-        
-        /* Bară Date */
-        .data-bar { display: flex; width: 100%; justify-content: space-around; padding: 15px 0; background: rgba(255,255,255,0.05); margin-bottom: 20px; }
-        .data-label { font-size: 0.7rem; text-transform: uppercase; color: #008000; }
-        .data-val { font-size: 1.5rem; font-weight: bold; }
-
-        /* Setări */
-        #settingsPanel { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark); z-index: 100; display: none; padding: 30px; box-sizing: border-box; }
-        .btn { background: var(--gray); color: var(--neon); border: 1px solid var(--neon); padding: 15px; border-radius: 10px; width: 80%; margin: 10px 0; font-size: 1rem; }
-        .config-btn { position: absolute; top: 20px; right: 20px; font-size: 1.5rem; z-index: 50; }
-        input { background: #000; color: #0f0; border: 1px solid #0f0; padding: 10px; font-size: 1.2rem; width: 80px; text-align: center; }
+        body { background: #121212; color: #00ff00; font-family: sans-serif; text-align: center; margin: 0; }
+        .stats { display: flex; justify-content: space-around; padding: 20px; background: #1e1e1e; }
+        .label { font-size: 0.8rem; color: #888; }
+        .value { font-size: 2rem; font-weight: bold; }
+        #map { height: 400px; width: 100%; border-bottom: 2px solid #00ff00; }
+        .controls { padding: 20px; }
+        button { padding: 15px 30px; font-size: 1.2rem; background: #00ff00; color: #000; border: none; border-radius: 50px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="config-btn" onclick="toggleSettings()">⚙️</div>
+    <div id="map"></div>
 
-    <div class="main-display">
-        <div class="speed-val" id="speed">0</div>
-        <div class="speed-unit">KM/H</div>
-        
-        <div class="data-bar">
-            <div class="data-item"><div class="data-label">Distanță</div><div class="data-val" id="distance">0.0</div><div class="data-label">KM</div></div>
-            <div class="data-item"><div class="data-label">Calorii</div><div class="data-val" id="calories">0</div><div class="data-label">KCAL</div></div>
-            <div class="data-item"><div class="data-label">Timp</div><div class="data-val" id="timer">00:00</div><div class="data-label">MIN</div></div>
+    <div class="stats">
+        <div>
+            <div class="label">VITEZĂ</div>
+            <div id="speed" class="value">0.0 km/h</div>
         </div>
-        
-        <button class="btn" id="startBtn" onclick="startTracking()">START SESIUNE</button>
+        <div>
+            <div class="label">DISTANȚĂ</div>
+            <div id="distance" class="value">0.00 km</div>
+        </div>
     </div>
 
-    <div id="settingsPanel">
-        <div style="text-align: right; font-size: 2.5rem;" onclick="toggleSettings()">✕</div>
-        <h2>SETĂRI</h2>
-        <div style="margin: 40px 0;">
-            <label>GREUTATE TOTALĂ (KG):</label><br><br>
-            <input type="number" id="totalWeight" value="90" onchange="saveSettings()">
-            <p style="font-size: 0.8rem; color: #666;">(Tu + Bicicletă + Echipament)</p>
-        </div>
-        <hr border="0" style="border-top: 1px solid #222;">
-        <button class="btn" onclick="saveAndReset()" style="color: #ff0; border-color: #ff0;">FINALIZARE & RESET</button>
-        <div id="history" style="margin-top: 30px; font-size: 0.9rem; text-align: left;"></div>
+    <div class="controls">
+        <button id="startBtn" onclick="startTracking()">START TRASEU</button>
     </div>
 
-<script>
-    let totalDist = 0, lastPos = null, startTime, timerInt, watchId;
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map, routeLine, marker;
+        let pathCoords = [];
+        let totalDistance = 0;
+        let lastPos = null;
 
-    window.onload = () => {
-        if(localStorage.getItem('userWeight')) document.getElementById('totalWeight').value = localStorage.getItem('userWeight');
-        showHistory();
-    };
+        // Inițializăm harta cu o poziție generică
+        map = L.map('map').setView([44.4268, 26.1025], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
 
-    function toggleSettings() {
-        const p = document.getElementById('settingsPanel');
-        p.style.display = p.style.display === 'block' ? 'none' : 'block';
-    }
+        routeLine = L.polyline([], {color: '#00ff00', weight: 5}).addTo(map);
 
-    function saveSettings() {
-        localStorage.setItem('userWeight', document.getElementById('totalWeight').value);
-    }
-
-    async function startTracking() {
-        if ('wakeLock' in navigator) await navigator.wakeLock.request('screen');
-        document.getElementById('startBtn').style.display = 'none';
-        startTime = Date.now();
-        timerInt = setInterval(() => {
-            const diff = Date.now() - startTime;
-            const m = Math.floor(diff / 60000).toString().padStart(2, '0');
-            const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
-            document.getElementById('timer').innerText = `${m}:${s}`;
-        }, 1000);
-
-        watchId = navigator.geolocation.watchPosition(pos => {
-            const c = pos.coords;
-            document.getElementById('speed').innerText = c.speed ? Math.round(c.speed * 3.6) : 0;
-            
-            if (lastPos && (c.speed * 3.6) > 0.5) {
-                const R = 6371;
-                const dLat = (c.latitude - lastPos.latitude) * Math.PI / 180;
-                const dLon = (c.longitude - lastPos.longitude) * Math.PI / 180;
-                const a = Math.sin(dLat/2)**2 + Math.cos(lastPos.latitude*Math.PI/180)*Math.cos(c.latitude*Math.PI/180)*Math.sin(dLon/2)**2;
-                const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                
-                totalDist += d;
-                document.getElementById('distance').innerText = totalDist.toFixed(1);
-                // Formula solicitată: Greutate Totală * Distanță * 0.15
-                const kcal = totalDist * parseFloat(document.getElementById('totalWeight').value) * 0.15;
-                document.getElementById('calories').innerText = Math.round(kcal);
+        function startTracking() {
+            document.getElementById('startBtn').style.display = 'none';
+            if ("geolocation" in navigator) {
+                navigator.geolocation.watchPosition(updatePosition, handleError, {
+                    enableHighAccuracy: true,
+                    maximumAge: 1000
+                });
             }
-            lastPos = c;
-        }, null, { enableHighAccuracy: true });
-    }
-
-    function saveAndReset() {
-        if(totalDist > 0) {
-            const rides = JSON.parse(localStorage.getItem('myRides') || "[]");
-            rides.unshift({ date: new Date().toLocaleDateString(), km: totalDist.toFixed(1), kcal: document.getElementById('calories').innerText });
-            localStorage.setItem('myRides', JSON.stringify(rides.slice(0, 5)));
         }
-        location.reload();
-    }
 
-    function showHistory() {
-        const rides = JSON.parse(localStorage.getItem('myRides') || "[]");
-        document.getElementById('history').innerHTML = "<b>ULTIMELE CURSE:</b><br>" + 
-            rides.map(r => `${r.date}: ${r.km} km | ${r.kcal} kcal`).join('<br>');
-    }
-</script>
+        function updatePosition(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const currentPoint = [lat, lon];
+
+            // 1. Actualizăm harta
+            pathCoords.push(currentPoint);
+            routeLine.setLatLngs(pathCoords);
+            map.panTo(currentPoint);
+
+            // Adăugăm sau mutăm markerul poziției actuale
+            if (!marker) {
+                marker = L.marker(currentPoint).addTo(map);
+            } else {
+                marker.setLatLng(currentPoint);
+            }
+
+            // 2. Calculăm viteza (km/h)
+            let speedKmh = ((position.coords.speed || 0) * 3.6).toFixed(1);
+            document.getElementById('speed').innerText = `${speedKmh} km/h`;
+
+            // 3. Calculăm distanța
+            if (lastPos) {
+                let d = calculateDistance(lastPos.lat, lastPos.lon, lat, lon);
+                totalDistance += d;
+                document.getElementById('distance').innerText = `${totalDistance.toFixed(2)} km`;
+            }
+            lastPos = {lat, lon};
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; 
+            let dLat = (lat2 - lat1) * Math.PI / 180;
+            let dLon = (lon2 - lon1) * Math.PI / 180;
+            let a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function handleError(err) { console.error(err); }
+    </script>
 </body>
 </html>
