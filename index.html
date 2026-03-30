@@ -2,66 +2,62 @@
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bike Pro v15 - Visible Buttons</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bike Pro</title>
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+    <link rel="apple-touch-icon" href="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Check_green_icon.svg/120px-Check_green_icon.svg.png">
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --neon: #00ff00; --bg: #000; --card: #111; --danger: #ff4444; }
         * { box-sizing: border-box; }
-        body { background: var(--bg); color: #fff; font-family: 'Arial Black', sans-serif; margin: 0; overflow: hidden; }
+        body { background: var(--bg); color: #fff; font-family: 'Arial Black', sans-serif; margin: 0; overflow: hidden; touch-action: pan-y; }
 
-        /* Pagini */
         .page { display: none; height: 82vh; width: 100vw; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
         .active { display: flex; }
+
+        /* LED INTERMITENT */
+        .led-indicator {
+            position: absolute; top: 20px; right: 20px; width: 15px; height: 15px;
+            border-radius: 50%; background-color: #333; /* Oprit */
+            box-shadow: 0 0 5px #000; transition: background-color 0.3s; z-index: 1000;
+        }
+        .led-active { background-color: var(--neon); animation: blink 1.5s infinite; box-shadow: 0 0 10px var(--neon); }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
 
         /* Dashboard */
         .v-num { font-size: 13rem; color: var(--neon); line-height: 0.8; margin: 0; }
         .v-timer { font-size: 3rem; font-family: monospace; margin: 15px 0; }
 
-        /* NAVIGARE JOS - Text Vizibil și Centrat */
-        .nav { 
-            height: 18vh; 
-            display: flex; 
-            background: #080808; 
-            border-top: 2px solid #222; 
-            align-items: flex-start; /* Aliniere la marginea de sus a barei */
-        }
-        .nav-item { 
-            flex: 1; 
-            background: none; 
-            border: none; 
-            color: #666; 
-            font-weight: 900; 
-            font-size: 0.9rem; /* Mărit pentru vizibilitate */
-            cursor: pointer; 
-            text-transform: uppercase;
-            padding: 20px 5px; /* Spațiu intern pentru a centra textul */
-            display: flex;
-            justify-content: center;
-            transition: color 0.2s;
-        }
+        /* NAVIGARE (4 Butoane acum) */
+        .nav { height: 18vh; display: flex; background: #080808; border-top: 2px solid #222; align-items: flex-start; }
+        .nav-item { flex: 1; background: none; border: none; color: #666; font-weight: 900; font-size: 0.75rem; cursor: pointer; padding: 20px 2px; }
         .nav-item.active-nav { color: var(--neon); border-top: 3px solid var(--neon); }
 
-        /* Grid Statistici */
+        /* Grid & Carduri */
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 92%; max-width: 400px; }
         .card { background: var(--card); padding: 15px; border-radius: 15px; border: 1px solid #222; }
         .label { color: #777; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 5px; font-family: sans-serif; }
         .val { font-size: 1.6rem; font-weight: bold; }
-
         #map { height: 160px; width: 100%; border-radius: 15px; margin-top: 5px; filter: grayscale(1) invert(0.9); grid-column: span 2; }
-        
-        /* Modal Style */
-        #customModal {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); z-index: 9999; align-items: center; justify-content: center;
-        }
-        .modal-content { background: var(--card); border: 2px solid var(--neon); padding: 30px; border-radius: 25px; width: 85%; max-width: 320px; }
 
+        /* Setări Input */
+        .input-box { width: 100%; padding: 15px; font-size: 1.5rem; text-align: center; background: #222; border: 2px solid #444; color: var(--neon); border-radius: 10px; margin-bottom: 20px; font-weight: bold; }
+
+        /* Modal & Butoane */
+        #customModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; align-items: center; justify-content: center; }
+        .modal-content { background: var(--card); border: 2px solid var(--neon); padding: 30px; border-radius: 25px; width: 85%; max-width: 320px; }
         .btn { padding: 20px; border-radius: 15px; border: none; font-weight: 900; cursor: pointer; width: 90%; font-size: 1.2rem; }
         .btn-stop { background: var(--danger); color: #fff; margin-top: 10px; grid-column: span 2; width: 100%; }
     </style>
 </head>
 <body>
+
+    <div id="ledIndicator" class="led-indicator"></div>
 
     <div id="customModal">
         <div class="modal-content">
@@ -100,21 +96,48 @@
         <button class="btn" style="background:#222; color:#555; font-size:0.8rem; margin: 20px 0;" onclick="openModal('Ștergi tot istoricul?', clearHistory)">ȘTERGE ISTORIC</button>
     </div>
 
+    <div id="p4" class="page" style="justify-content: flex-start; padding-top:40px;">
+        <h2 style="color:var(--neon); margin-bottom: 30px;">DATE FIZICE</h2>
+        <div style="width: 80%;">
+            <div class="label" style="font-size: 1rem; color: #aaa; margin-bottom: 10px;">Greutate Corporală (KG)</div>
+            <input type="number" id="weightInput" class="input-box" placeholder="Ex: 75">
+            <button class="btn" style="background:#333; color:var(--neon); width:100%;" onclick="saveSettings()">SALVEAZĂ</button>
+            <div id="saveMsg" style="color:var(--neon); margin-top:15px; display:none;">Setări Salvate!</div>
+        </div>
+    </div>
+
     <div class="nav">
         <button class="nav-item active-nav" id="b1" onclick="showPage(1)">VITEZĂ</button>
         <button class="nav-item" id="b2" onclick="showPage(2)">DETALII</button>
         <button class="nav-item" id="b3" onclick="showPage(3)">ISTORIC</button>
+        <button class="nav-item" id="b4" onclick="showPage(4)">SETĂRI</button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         let rideTime = 0, totalDist = 0, totalCals = 0, moving = false, lastPos = null, pendingAction = null;
-        let map, route, timerInt;
+        let map, route, timerInt, userWeight = 75; // Greutate default
 
         window.onload = () => {
             const odo = localStorage.getItem('bikeOdo') || "0.0";
             document.getElementById('odo-display').textContent = parseFloat(odo).toFixed(1) + " km";
+            
+            // Încărcare Greutate din memorie
+            userWeight = parseFloat(localStorage.getItem('bikeWeight')) || 75;
+            document.getElementById('weightInput').value = userWeight;
         };
+
+        function saveSettings() {
+            let w = document.getElementById('weightInput').value;
+            if(w > 20 && w < 200) {
+                localStorage.setItem('bikeWeight', w);
+                userWeight = w;
+                document.getElementById('saveMsg').style.display = 'block';
+                setTimeout(() => document.getElementById('saveMsg').style.display = 'none', 2000);
+            } else {
+                alert("Te rugăm să introduci o greutate validă.");
+            }
+        }
 
         function openModal(text, action) {
             document.getElementById('modalText').textContent = text;
@@ -140,15 +163,20 @@
         async function startRide() {
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'block';
+            document.getElementById('ledIndicator').classList.add('led-active'); // Aprindem LED-ul
+            
             map = L.map('map', {zoomControl: false}).setView([44.43, 26.10], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             route = L.polyline([], {color: '#00ff00', weight: 6}).addTo(map);
+            
             if('wakeLock' in navigator) await navigator.wakeLock.request('screen').catch(()=>{});
             
             timerInt = setInterval(() => {
                 if(moving) {
                     rideTime++;
-                    totalCals += 0.015;
+                    // FORMULA MEDICALĂ PENTRU CALORII: Calorii = MET(8) * Greutate(kg) * Timp(ore)
+                    totalCals = 8 * userWeight * (rideTime / 3600);
+                    
                     document.getElementById('timer').textContent = new Date(rideTime * 1000).toISOString().substr(11, 8);
                     document.getElementById('c-val').textContent = Math.floor(totalCals) + " kcal";
                     document.getElementById('avg-val').textContent = (totalDist / (rideTime/3600) || 0).toFixed(1);
@@ -182,7 +210,7 @@
             let odo = parseFloat(localStorage.getItem('bikeOdo') || "0.0");
             localStorage.setItem('bikeOdo', (odo + totalDist).toFixed(2));
             let history = JSON.parse(localStorage.getItem('bikeHistory') || '[]');
-            history.unshift({ date: new Date().toLocaleDateString(), dist: totalDist.toFixed(1), time: document.getElementById('timer').textContent });
+            history.unshift({ date: new Date().toLocaleDateString(), dist: totalDist.toFixed(1), time: document.getElementById('timer').textContent, cals: Math.floor(totalCals) });
             localStorage.setItem('bikeHistory', JSON.stringify(history));
             location.reload();
         }
@@ -194,7 +222,7 @@
             const history = JSON.parse(localStorage.getItem('bikeHistory') || '[]');
             list.innerHTML = '';
             history.forEach(item => {
-                list.innerHTML += `<div class="card" style="width:100%; margin-bottom:10px;"><div class="label">${item.date}</div><div style="font-size:1.3rem; font-weight:bold;">${item.dist} km | ${item.time}</div></div>`;
+                list.innerHTML += `<div class="card" style="width:100%; margin-bottom:10px;"><div class="label">${item.date}</div><div style="font-size:1.3rem; font-weight:bold;">${item.dist} km | ${item.time} | ${item.cals || 0} kcal</div></div>`;
             });
         }
     </script>
