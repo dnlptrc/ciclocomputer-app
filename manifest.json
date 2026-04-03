@@ -1,1 +1,17 @@
 
+{
+  "name": "Bike Pro Elite",
+  "short_name": "SpeedPro",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.png", 
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
