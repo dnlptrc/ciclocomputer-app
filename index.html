@@ -113,6 +113,11 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js')
+    .then(() => console.log("Service Worker activat!"))
+    .catch((err) => console.log("Eroare SW:", err));
+}
         let rideTime = 0, totalDist = 0, moving = false, lastPos = null, pendingAction = null;
         let map, route, timerInt, wakeLock = null;
 
