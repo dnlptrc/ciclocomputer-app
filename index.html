@@ -6,10 +6,9 @@
     <title>Bike Pro Elite</title>
 
     <link rel="manifest" href="manifest.json">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#000000">
-
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
@@ -22,7 +21,8 @@
         
         /* Speedometer */
         .v-num { font-size: 11rem; color: var(--neon); line-height: 0.8; margin: 0; font-variant-numeric: tabular-nums; }
-        .v-timer { font-size: 2.5rem; font-family: monospace; margin: 10px 0; }
+        .v-timer { font-size: 2.5rem; font-family: monospace; margin-top: 10px; color: #fff; }
+        .v-total-timer { font-size: 1rem; font-family: monospace; color: #555; margin-bottom: 10px; }
 
         /* Navigation */
         .nav { height: 18vh; display: flex; background: #080808; border-top: 1px solid #222; }
@@ -35,10 +35,8 @@
         .label { color: #777; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 5px; }
         .val { font-size: 1.4rem; font-weight: bold; }
 
-        /* HARTA - Am scos filtrul gri pentru a vedea linia verde clar */
         #map { height: 250px; width: 100%; border-radius: 15px; margin-top: 5px; grid-column: span 2; border: 2px solid #333; z-index: 1; }
         
-        /* Modal */
         #customModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; align-items: center; justify-content: center; }
         .modal-content { background: var(--card); border: 2px solid var(--neon); padding: 30px; border-radius: 25px; width: 85%; text-align: center; }
 
@@ -48,7 +46,6 @@
         .btn-export { background: var(--blue); color: #fff; margin-top: 10px; grid-column: span 2; font-size: 0.8rem; }
 
         .input-box { width: 100%; padding: 15px; font-size: 1.5rem; text-align: center; background: #222; border: 2px solid #444; color: var(--neon); border-radius: 10px; }
-
         #keepAliveVideo { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
     </style>
 </head>
@@ -71,7 +68,8 @@
     <div id="p1" class="page active">
         <div class="v-num" id="speed">0</div>
         <div style="color:var(--neon); letter-spacing:8px;">KM/H</div>
-        <div class="v-timer" id="timer">00:00:00</div>
+        <div class="v-timer" id="activeTimer">00:00:00</div>
+        <div class="v-total-timer">TOTAL: <span id="totalTimer">00:00:00</span></div>
         <button class="btn btn-start" id="startBtn" onclick="startRide()">START CURSĂ</button>
     </div>
 
@@ -114,11 +112,11 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js')
-    .then(() => console.log("Service Worker activat!"))
-    .catch((err) => console.log("Eroare SW:", err));
-}
-        let rideTime = 0, totalDist = 0, moving = false, lastPos = null, pendingAction = null;
+            navigator.serviceWorker.register('./sw.js').catch((err) => console.log("Eroare SW:", err));
+        }
+
+        let activeTime = 0, totalTime = 0, totalDist = 0;
+        let moving = false, lastPos = null, pendingAction = null;
         let map, route, timerInt, wakeLock = null;
 
         window.onload = () => {
@@ -136,7 +134,6 @@
         }
 
         async function startRide() {
-            // Fix ecran: Video + Wakelock
             document.getElementById('keepAliveVideo').play().catch(() => {});
             if ('wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
 
@@ -147,15 +144,20 @@
             if(!map) {
                 map = L.map('map', {zoomControl: false}).setView([44.43, 26.10], 16);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                // LINIA VERDE NEON - Opacitate maximă
                 route = L.polyline([], {color: '#00ff00', weight: 8, opacity: 1.0}).addTo(map);
             }
 
             timerInt = setInterval(() => {
+                totalTime++;
+                document.getElementById('totalTimer').textContent = new Date(totalTime * 1000).toISOString().substr(11, 8);
+
                 if(moving) {
-                    rideTime++;
-                    document.getElementById('timer').textContent = new Date(rideTime * 1000).toISOString().substr(11, 8);
-                    document.getElementById('avg-val').textContent = (totalDist / (rideTime/3600) || 0).toFixed(1);
+                    activeTime++;
+                    document.getElementById('activeTimer').textContent = new Date(activeTime * 1000).toISOString().substr(11, 8);
+                    
+                    let oreActive = activeTime / 3600;
+                    let avg = (totalDist / oreActive) || 0;
+                    document.getElementById('avg-val').textContent = avg.toFixed(1);
                 }
             }, 1000);
 
@@ -164,14 +166,16 @@
 
         function update(pos) {
             const { latitude: lat, longitude: lon, speed } = pos.coords;
-            const kmh = speed > 0.5 ? Math.round(speed * 3.6) : 0;
-            document.getElementById('speed').textContent = kmh;
+            const kmh = speed > 0 ? speed * 3.6 : 0;
+            
+            document.getElementById('speed').textContent = Math.round(kmh);
 
-            if(speed > 0.5) {
+            // PRAG ACTIV: 4 km/h
+            if(kmh >= 4.0) {
                 moving = true;
                 if(lastPos) {
                     let d = calcDist(lastPos.lat, lastPos.lon, lat, lon);
-                    if(d < 0.5) totalDist += d;
+                    if(d < 0.5) totalDist += d; 
                 }
                 document.getElementById('d-val').textContent = totalDist.toFixed(1) + " km";
                 lastPos = {lat, lon};
@@ -188,6 +192,20 @@
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
+        function stopAndSave() {
+            let odo = parseFloat(localStorage.getItem('bikeOdo') || "0.0");
+            localStorage.setItem('bikeOdo', (odo + totalDist).toFixed(1));
+            let h = JSON.parse(localStorage.getItem('bikeHistory') || '[]');
+            
+            // Salvăm timpul activ în istoric
+            let tActiv = document.getElementById('activeTimer').textContent;
+            h.unshift({ d: totalDist.toFixed(1), t: tActiv, date: new Date().toLocaleDateString() });
+            
+            localStorage.setItem('bikeHistory', JSON.stringify(h));
+            if(wakeLock) wakeLock.release();
+            location.reload();
+        }
+
         function exportGPX() {
             const points = route.getLatLngs();
             if (points.length < 2) return alert("Traseu prea scurt!");
@@ -198,16 +216,6 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url; a.download = `ride_${Date.now()}.gpx`; a.click();
-        }
-
-        function stopAndSave() {
-            let odo = parseFloat(localStorage.getItem('bikeOdo') || "0.0");
-            localStorage.setItem('bikeOdo', (odo + totalDist).toFixed(1));
-            let h = JSON.parse(localStorage.getItem('bikeHistory') || '[]');
-            h.unshift({ d: totalDist.toFixed(1), t: document.getElementById('timer').textContent, date: new Date().toLocaleDateString() });
-            localStorage.setItem('bikeHistory', JSON.stringify(h));
-            if(wakeLock) wakeLock.release();
-            location.reload();
         }
 
         function renderHistory() {
