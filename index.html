@@ -72,15 +72,34 @@
     </div>
 
     <div id="p2" class="page">
-        <div id="map-container">
-            <div id="map"></div>
-            <button class="dl-btn" onclick="downloadMap()">DESCARCĂ HARTA</button>
+    <button id="dlBtn" onclick="downloadMap()" style="
+        width: 92%; 
+        background: #0088ff; 
+        color: white; 
+        padding: 15px; 
+        border-radius: 15px; 
+        border: none; 
+        font-weight: bold; 
+        margin-bottom: 10px;
+        box-shadow: 0 4px 10px rgba(0,136,255,0.3);
+    ">
+        📥 DESCARCĂ ACEASTĂ ZONĂ (OFFLINE)
+    </button>
+
+    <div id="map" style="width: 92%; height: 250px; border-radius: 20px; border: 2px solid #333;"></div>
+
+    <div class="stats-grid" style="width: 92%; margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="card" style="background:#111; padding:15px; border-radius:15px; text-align:center;">
+            <div style="color:#777; font-size:0.7rem;">DISTANȚĂ</div>
+            <div id="d-val" style="font-size:1.5rem; font-weight:bold;">0.0 km</div>
         </div>
-        <div class="stats-grid">
-            <div class="card"><div class="label">Distanță</div><div class="val" id="d-val">0.0 km</div></div>
-            <div class="card"><div class="label">Medie</div><div class="val" id="avg-val">0.0</div></div>
+        <div class="card" style="background:#111; padding:15px; border-radius:15px; text-align:center;">
+            <div style="color:#777; font-size:0.7rem;">MEDIE</div>
+            <div id="avg-val" style="font-size:1.5rem; font-weight:bold;">0.0</div>
         </div>
     </div>
+</div>
+
 
     <div class="nav">
         <button class="nav-item active-nav" id="b1" onclick="showPage(1)">VITEZĂ</button>
