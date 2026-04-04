@@ -3,169 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bike Pro Offline</title>
-
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
-    <script src="https://unpkg.com/leaflet.tilelayer.pouchdb@1.0.0/L.TileLayer.PouchDB.js"></script>
-
+    <title>Bike Simple</title>
     <style>
-        :root { --neon: #00ff00; --bg: #000; --card: #111; --blue: #0088ff; }
-        body { background: var(--bg); color: #fff; font-family: sans-serif; margin: 0; overflow: hidden; }
+        :root { --neon: #00ff00; --bg: #000; }
+        body { background: var(--bg); color: #fff; font-family: sans-serif; margin: 0; text-align: center; }
         
-        .page { display: none; height: 82vh; width: 100vw; flex-direction: column; align-items: center; justify-content: center; }
-        .active { display: flex; }
+        .speed-val { font-size: 12rem; font-weight: 900; color: var(--neon); line-height: 1; margin-top: 20vh; }
+        .unit { font-size: 2rem; color: var(--neon); letter-spacing: 5px; }
         
-        /* Speedo */
-        .v-num { font-size: 10rem; color: var(--neon); line-height: 0.8; font-weight: 900; }
-        .v-timer { font-size: 2.5rem; margin-top: 10px; }
+        .stats { display: flex; justify-content: space-around; margin-top: 50px; }
+        .stat-card { background: #111; padding: 20px; border-radius: 15px; width: 45%; }
+        .label { color: #555; font-size: 0.8rem; margin-bottom: 5px; }
+        .val { font-size: 1.8rem; font-weight: bold; }
 
-        /* Map Container */
-        #map-container { 
-            position: relative; 
-            width: 92%; 
-            height: 300px; 
-            margin-top: 10px; 
-            border-radius: 20px; 
-            overflow: hidden; 
-            border: 2px solid #333;
+        .btn { 
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 80%; padding: 20px; border-radius: 50px; border: none;
+            font-size: 1.5rem; font-weight: bold; background: var(--neon); color: #000;
         }
-        #map { height: 100%; width: 100%; z-index: 1; }
-
-        /* BUTONUL DE DESCARCARE - Fortat sa fie vizibil */
-        .dl-btn { 
-            position: absolute; 
-            top: 15px; 
-            right: 15px; 
-            z-index: 9999; /* Foarte important sa fie deasupra hartii */
-            background: var(--blue); 
-            color: white; 
-            border: none; 
-            padding: 12px 15px; 
-            border-radius: 10px; 
-            font-weight: bold; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            cursor: pointer;
-        }
-
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 92%; margin-top: 10px; }
-        .card { background: var(--card); padding: 15px; border-radius: 15px; text-align: center; }
-        .label { color: #777; font-size: 0.7rem; text-transform: uppercase; }
-        .val { font-size: 1.5rem; font-weight: bold; }
-
-        /* Nav */
-        .nav { height: 18vh; display: flex; background: #050505; border-top: 1px solid #222; }
-        .nav-item { flex: 1; background: none; border: none; color: #444; font-weight: bold; }
-        .active-nav { color: var(--neon); border-top: 3px solid var(--neon); }
-
-        .btn-start { background: var(--neon); color: #000; padding: 20px; border-radius: 15px; border: none; font-weight: bold; width: 85%; font-size: 1.2rem; margin-top: 20px; }
+        .stop { background: #ff4444; color: #fff; }
     </style>
 </head>
 <body>
 
-    <div id="p1" class="page active">
-        <div class="v-num" id="speed">0</div>
-        <div style="color:var(--neon)">KM/H</div>
-        <div class="v-timer" id="activeTimer">00:00:00</div>
-        <button class="btn-start" onclick="startRide()">START CURSĂ</button>
-    </div>
+    <div class="speed-val" id="speed">0</div>
+    <div class="unit">KM/H</div>
 
-    <div id="p2" class="page">
-    <button id="dlBtn" onclick="downloadMap()" style="
-        width: 92%; 
-        background: #0088ff; 
-        color: white; 
-        padding: 15px; 
-        border-radius: 15px; 
-        border: none; 
-        font-weight: bold; 
-        margin-bottom: 10px;
-        box-shadow: 0 4px 10px rgba(0,136,255,0.3);
-    ">
-        📥 DESCARCĂ ACEASTĂ ZONĂ (OFFLINE)
-    </button>
-
-    <div id="map" style="width: 92%; height: 250px; border-radius: 20px; border: 2px solid #333;"></div>
-
-    <div class="stats-grid" style="width: 92%; margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div class="card" style="background:#111; padding:15px; border-radius:15px; text-align:center;">
-            <div style="color:#777; font-size:0.7rem;">DISTANȚĂ</div>
-            <div id="d-val" style="font-size:1.5rem; font-weight:bold;">0.0 km</div>
+    <div class="stats">
+        <div class="stat-card">
+            <div class="label">DISTANȚĂ</div>
+            <div class="val" id="dist">0.0 km</div>
         </div>
-        <div class="card" style="background:#111; padding:15px; border-radius:15px; text-align:center;">
-            <div style="color:#777; font-size:0.7rem;">MEDIE</div>
-            <div id="avg-val" style="font-size:1.5rem; font-weight:bold;">0.0</div>
+        <div class="stat-card">
+            <div class="label">TIMP ACTIV</div>
+            <div id="timer" class="val">00:00</div>
         </div>
     </div>
-</div>
 
-
-    <div class="nav">
-        <button class="nav-item active-nav" id="b1" onclick="showPage(1)">VITEZĂ</button>
-        <button class="nav-item" id="b2" onclick="showPage(2)">HARTĂ</button>
-    </div>
+    <button id="mainBtn" class="btn" onclick="toggleRide()">START</button>
 
     <script>
-        let map, tileLayer, moving = false, totalDist = 0, lastPos = null;
+        let isRunning = false;
+        let totalDist = 0;
+        let seconds = 0;
+        let lastPos = null;
+        let watchId = null;
+        let timerId = null;
 
-        function showPage(n) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active-nav'));
-            document.getElementById('p'+n).classList.add('active');
-            document.getElementById('b'+n).classList.add('active-nav');
-            if(n === 2) {
-                setTimeout(() => { 
-                    map.invalidateSize(); 
-                }, 200);
+        function toggleRide() {
+            const btn = document.getElementById('mainBtn');
+            if (!isRunning) {
+                // START
+                isRunning = true;
+                btn.textContent = "STOP";
+                btn.classList.add('stop');
+                startTracking();
+            } else {
+                // STOP
+                if(confirm("Salvezi cursa?")) location.reload();
             }
         }
 
-        // Inițializare hartă
-        map = L.map('map', { zoomControl: false }).setView([44.43, 26.10], 15);
-        
-        tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            useCache: true, // Activează stocarea locală
-            crossOrigin: true
-        }).addTo(map);
-
-        async function downloadMap() {
-            const bounds = map.getBounds();
-            if(confirm("Descarc zona vizibilă pentru utilizare OFFLINE?")) {
-                try {
-                    // Seed descarcă nivelele de zoom 14, 15 și 16 pentru zona de pe ecran
-                    await tileLayer.seed(bounds, 14, 16);
-                    alert("Descărcare finalizată! Harta va merge și fără internet.");
-                } catch(e) {
-                    alert("Eroare la descărcare. Verifică conexiunea la internet.");
+        function startTracking() {
+            // Cronometru doar când ne mișcăm
+            timerId = setInterval(() => {
+                if (lastPos && isRunning) {
+                    // Secundele cresc doar dacă avem o poziție activă
                 }
-            }
-        }
+            }, 1000);
 
-        function startRide() {
-            navigator.geolocation.watchPosition(update, null, {enableHighAccuracy: true});
-            alert("Cursa a început!");
-        }
+            watchId = navigator.geolocation.watchPosition(pos => {
+                const { latitude: lat, longitude: lon, speed, accuracy } = pos.coords;
+                
+                // FILTRU 1: Ignorăm dacă semnalul e prost (peste 30m eroare)
+                if (accuracy > 30) return;
 
-        function update(pos) {
-            const { latitude: lat, longitude: lon, speed, accuracy } = pos.coords;
-            if (accuracy > 25) return;
-            
-            const kmh = speed > 0 ? speed * 3.6 : 0;
-            document.getElementById('speed').textContent = kmh > 3.9 ? Math.round(kmh) : 0;
+                const kmh = speed > 0 ? speed * 3.6 : 0;
+                
+                // FILTRU 2: Viteza sub 4 km/h = STAI PE LOC
+                if (kmh < 4) {
+                    document.getElementById('speed').textContent = "0";
+                    return; 
+                }
 
-            if (kmh >= 4.0) {
-                moving = true;
+                document.getElementById('speed').textContent = Math.round(kmh);
+
+                // FILTRU 3: Calculăm distanța doar dacă ne mișcăm real
                 if (lastPos) {
                     let d = calcDist(lastPos.lat, lastPos.lon, lat, lon);
-                    if (d > 0.003) {
+                    // Ignorăm salturi GPS sub 5 metri (zgomot)
+                    if (d > 0.005 && d < 0.5) {
                         totalDist += d;
-                        document.getElementById('d-val').textContent = totalDist.toFixed(1) + " km";
-                        lastPos = {lat, lon};
-                        map.panTo([lat, lon]);
+                        document.getElementById('dist').textContent = totalDist.toFixed(1) + " km";
+                        
+                        // Incrementăm timpul doar când chiar adăugăm distanță
+                        seconds++;
+                        updateTimerDisplay();
                     }
-                } else { lastPos = {lat, lon}; }
-            } else { moving = false; }
+                }
+                lastPos = { lat, lon };
+            }, null, { enableHighAccuracy: true });
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            document.getElementById('timer').textContent = 
+                `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         }
 
         function calcDist(lat1, lon1, lat2, lon2) {
