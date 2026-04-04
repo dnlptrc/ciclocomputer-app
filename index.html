@@ -11,202 +11,148 @@
     <script src="https://unpkg.com/leaflet.tilelayer.pouchdb@1.0.0/L.TileLayer.PouchDB.js"></script>
 
     <style>
-        :root { --neon: #00ff00; --bg: #000; --card: #111; --danger: #ff4444; --blue: #0088ff; }
-        * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
-        body { background: var(--bg); color: #fff; font-family: 'Arial Black', sans-serif; margin: 0; overflow: hidden; }
+        :root { --neon: #00ff00; --bg: #000; --card: #111; --blue: #0088ff; }
+        body { background: var(--bg); color: #fff; font-family: sans-serif; margin: 0; overflow: hidden; }
         
-        .page { display: none; height: 82vh; width: 100vw; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .page { display: none; height: 82vh; width: 100vw; flex-direction: column; align-items: center; justify-content: center; }
         .active { display: flex; }
         
-        /* Speedometer */
-        .v-num { font-size: 11rem; color: var(--neon); line-height: 0.8; margin: 0; font-variant-numeric: tabular-nums; }
-        .v-timer { font-size: 2.5rem; font-family: monospace; margin-top: 10px; color: #fff; }
-        .v-total-timer { font-size: 1rem; font-family: monospace; color: #555; margin-bottom: 10px; }
+        /* Speedo */
+        .v-num { font-size: 10rem; color: var(--neon); line-height: 0.8; font-weight: 900; }
+        .v-timer { font-size: 2.5rem; margin-top: 10px; }
 
-        /* Navigation */
-        .nav { height: 18vh; display: flex; background: #080808; border-top: 1px solid #222; }
-        .nav-item { flex: 1; background: none; border: none; color: #555; font-weight: 900; font-size: 0.75rem; text-transform: uppercase; }
-        .nav-item.active-nav { color: var(--neon); border-top: 4px solid var(--neon); }
+        /* Map Container */
+        #map-container { 
+            position: relative; 
+            width: 92%; 
+            height: 300px; 
+            margin-top: 10px; 
+            border-radius: 20px; 
+            overflow: hidden; 
+            border: 2px solid #333;
+        }
+        #map { height: 100%; width: 100%; z-index: 1; }
 
-        /* Stats & Map */
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 92%; max-width: 400px; }
-        .card { background: var(--card); padding: 12px; border-radius: 15px; border: 1px solid #222; }
-        .label { color: #777; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 5px; }
-        .val { font-size: 1.4rem; font-weight: bold; }
+        /* BUTONUL DE DESCARCARE - Fortat sa fie vizibil */
+        .dl-btn { 
+            position: absolute; 
+            top: 15px; 
+            right: 15px; 
+            z-index: 9999; /* Foarte important sa fie deasupra hartii */
+            background: var(--blue); 
+            color: white; 
+            border: none; 
+            padding: 12px 15px; 
+            border-radius: 10px; 
+            font-weight: bold; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            cursor: pointer;
+        }
 
-        #map { height: 250px; width: 100%; border-radius: 15px; margin-top: 5px; grid-column: span 2; border: 2px solid #333; z-index: 1; position: relative; }
-        
-        .dl-btn { position: absolute; top: 10px; right: 10px; z-index: 1000; background: var(--blue); color: white; border: none; padding: 8px; border-radius: 5px; font-size: 0.7rem; font-weight: bold; cursor: pointer; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 92%; margin-top: 10px; }
+        .card { background: var(--card); padding: 15px; border-radius: 15px; text-align: center; }
+        .label { color: #777; font-size: 0.7rem; text-transform: uppercase; }
+        .val { font-size: 1.5rem; font-weight: bold; }
 
-        .btn { padding: 18px; border-radius: 15px; border: none; font-weight: 900; width: 100%; font-size: 1.1rem; }
-        .btn-start { background: var(--neon); color: #000; width: 85%; }
-        .btn-stop { background: var(--danger); color: #fff; margin-top: 10px; grid-column: span 2; }
+        /* Nav */
+        .nav { height: 18vh; display: flex; background: #050505; border-top: 1px solid #222; }
+        .nav-item { flex: 1; background: none; border: none; color: #444; font-weight: bold; }
+        .active-nav { color: var(--neon); border-top: 3px solid var(--neon); }
 
-        #keepAliveVideo { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+        .btn-start { background: var(--neon); color: #000; padding: 20px; border-radius: 15px; border: none; font-weight: bold; width: 85%; font-size: 1.2rem; margin-top: 20px; }
     </style>
 </head>
 <body>
 
-    <video id="keepAliveVideo" playsinline loop muted>
-        <source src="https://raw.githubusercontent.com/intel/tiny-video-vignettes/master/ok.mp4" type="video/mp4">
-    </video>
-
     <div id="p1" class="page active">
         <div class="v-num" id="speed">0</div>
-        <div style="color:var(--neon); letter-spacing:8px;">KM/H</div>
+        <div style="color:var(--neon)">KM/H</div>
         <div class="v-timer" id="activeTimer">00:00:00</div>
-        <div class="v-total-timer">TOTAL: <span id="totalTimer">00:00:00</span></div>
-        <button class="btn btn-start" id="startBtn" onclick="startRide()">START CURSĂ</button>
+        <button class="btn-start" onclick="startRide()">START CURSĂ</button>
     </div>
 
     <div id="p2" class="page">
+        <div id="map-container">
+            <div id="map"></div>
+            <button class="dl-btn" onclick="downloadMap()">DESCARCĂ HARTA</button>
+        </div>
         <div class="stats-grid">
             <div class="card"><div class="label">Distanță</div><div class="val" id="d-val">0.0 km</div></div>
             <div class="card"><div class="label">Medie</div><div class="val" id="avg-val">0.0</div></div>
-            <div id="map">
-                <button class="dl-btn" onclick="downloadMap()">DESCARCĂ ZONA</button>
-            </div>
-            <button class="btn btn-stop" id="stopBtn" style="display:none;" onclick="stopAndSave()">STOP CURSĂ</button>
         </div>
-    </div>
-
-    <div id="p3" class="page" style="justify-content: flex-start; padding-top:20px; overflow-y:auto;">
-        <div id="odo-card" style="background:var(--neon); color:#000; width:92%; padding:20px; border-radius:20px; margin-bottom:15px;">
-            <div class="label" style="color:#000; opacity:0.7;">TOTAL ODOMETRU</div>
-            <div id="odo-display" style="font-size:2rem; font-weight:900;">0.0 km</div>
-        </div>
-        <div id="historyList" style="width:92%;"></div>
     </div>
 
     <div class="nav">
-        <button class="nav-item active-nav" id="b1" onclick="showPage(1)">Viteză</button>
-        <button class="nav-item" id="b2" onclick="showPage(2)">Detalii</button>
-        <button class="nav-item" id="b3" onclick="showPage(3)">Istoric</button>
+        <button class="nav-item active-nav" id="b1" onclick="showPage(1)">VITEZĂ</button>
+        <button class="nav-item" id="b2" onclick="showPage(2)">HARTĂ</button>
     </div>
 
     <script>
-        let activeTime = 0, totalTime = 0, totalDist = 0;
-        let moving = false, lastPos = null, isRideActive = false;
-        let map, route, timerInt, tileLayer, wakeLock = null;
-
-        window.onload = () => {
-            document.getElementById('odo-display').textContent = (localStorage.getItem('bikeOdo') || "0.0") + " km";
-            initMap();
-        };
+        let map, tileLayer, moving = false, totalDist = 0, lastPos = null;
 
         function showPage(n) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active-nav'));
             document.getElementById('p'+n).classList.add('active');
             document.getElementById('b'+n).classList.add('active-nav');
-            if(n === 2 && map) setTimeout(() => map.invalidateSize(), 300);
-            if(n === 3) renderHistory();
-        }
-
-        function initMap() {
-            map = L.map('map', { zoomControl: false }).setView([44.43, 26.10], 15);
-            
-            // Configurare strat cu CACHE (IndexedDB)
-            tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                useCache: true,
-                crossOrigin: true,
-                cacheMaxAge: 30 * 24 * 60 * 60 * 1000 // Salvează hărțile 30 de zile
-            }).addTo(map);
-
-            route = L.polyline([], {color: '#00ff00', weight: 6}).addTo(map);
-        }
-
-        async function downloadMap() {
-            const bounds = map.getBounds();
-            alert("Încep descărcarea zonei vizibile (Zoom 14-16)... Așteaptă confirmarea.");
-            try {
-                // "Seed" descarcă toate tiles-urile din zona curentă
-                await tileLayer.seed(bounds, 14, 16);
-                alert("Gata! Harta zonei este salvată offline.");
-            } catch (e) {
-                alert("Eroare: Ai nevoie de internet pentru a descărca harta prima dată.");
+            if(n === 2) {
+                setTimeout(() => { 
+                    map.invalidateSize(); 
+                }, 200);
             }
         }
 
-        async function startRide() {
-            isRideActive = true;
-            document.getElementById('keepAliveVideo').play().catch(() => {});
-            if ('wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+        // Inițializare hartă
+        map = L.map('map', { zoomControl: false }).setView([44.43, 26.10], 15);
+        
+        tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            useCache: true, // Activează stocarea locală
+            crossOrigin: true
+        }).addTo(map);
 
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('stopBtn').style.display = 'block';
-
-            timerInt = setInterval(() => {
-                totalTime++;
-                document.getElementById('totalTimer').textContent = formatTime(totalTime);
-
-                if(moving) {
-                    activeTime++;
-                    document.getElementById('activeTimer').textContent = formatTime(activeTime);
-                    let avg = (totalDist / (activeTime / 3600)) || 0;
-                    document.getElementById('avg-val').textContent = avg.toFixed(1);
+        async function downloadMap() {
+            const bounds = map.getBounds();
+            if(confirm("Descarc zona vizibilă pentru utilizare OFFLINE?")) {
+                try {
+                    // Seed descarcă nivelele de zoom 14, 15 și 16 pentru zona de pe ecran
+                    await tileLayer.seed(bounds, 14, 16);
+                    alert("Descărcare finalizată! Harta va merge și fără internet.");
+                } catch(e) {
+                    alert("Eroare la descărcare. Verifică conexiunea la internet.");
                 }
-            }, 1000);
+            }
+        }
 
+        function startRide() {
             navigator.geolocation.watchPosition(update, null, {enableHighAccuracy: true});
+            alert("Cursa a început!");
         }
 
         function update(pos) {
-            if(!isRideActive) return;
             const { latitude: lat, longitude: lon, speed, accuracy } = pos.coords;
-            
-            // FILTRU 1: Ignorăm semnalul prost (peste 25m eroare)
             if (accuracy > 25) return;
-
+            
             const kmh = speed > 0 ? speed * 3.6 : 0;
-            document.getElementById('speed').textContent = kmh > 1.5 ? Math.round(kmh) : 0;
+            document.getElementById('speed').textContent = kmh > 3.9 ? Math.round(kmh) : 0;
 
-            // FILTRU 2: Doar peste 4 km/h considerăm mișcare reală
             if (kmh >= 4.0) {
                 moving = true;
                 if (lastPos) {
                     let d = calcDist(lastPos.lat, lastPos.lon, lat, lon);
-                    // FILTRU 3: Ignorăm vibrațiile GPS sub 3 metri
-                    if (d > 0.003 && d < 0.3) {
+                    if (d > 0.003) {
                         totalDist += d;
                         document.getElementById('d-val').textContent = totalDist.toFixed(1) + " km";
                         lastPos = {lat, lon};
-                        route.addLatLng([lat, lon]);
                         map.panTo([lat, lon]);
                     }
-                } else {
-                    lastPos = {lat, lon};
-                }
-            } else {
-                moving = false;
-            }
+                } else { lastPos = {lat, lon}; }
+            } else { moving = false; }
         }
 
         function calcDist(lat1, lon1, lat2, lon2) {
             const R = 6371; const rad = Math.PI/180;
             const a = Math.sin(((lat2-lat1)*rad)/2)**2 + Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(((lon2-lon1)*rad)/2)**2;
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        }
-
-        function formatTime(s) {
-            return new Date(s * 1000).toISOString().substr(11, 8);
-        }
-
-        function stopAndSave() {
-            if(!confirm("Finalizezi cursa?")) return;
-            let odo = parseFloat(localStorage.getItem('bikeOdo') || "0.0");
-            localStorage.setItem('bikeOdo', (odo + totalDist).toFixed(1));
-            
-            let h = JSON.parse(localStorage.getItem('bikeHistory') || '[]');
-            h.unshift({ d: totalDist.toFixed(1), t: formatTime(activeTime), date: new Date().toLocaleDateString() });
-            localStorage.setItem('bikeHistory', JSON.stringify(h));
-            
-            location.reload();
-        }
-
-        function renderHistory() {
-            const h = JSON.parse(localStorage.getItem('bikeHistory') || '[]');
-            document.getElementById('historyList').innerHTML = h.map(i => `<div class="card" style="margin-bottom:8px; text-align:left;"><div class="label">${i.date}</div><b>${i.d} km</b> | ${i.t}</div>`).join('');
         }
     </script>
 </body>
