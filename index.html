@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bike Pro Elite</title>
-
-    <link rel="manifest" href="manifest.json">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#000000">
+    <title>Bike Pro Offline</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
+    <script src="https://unpkg.com/leaflet.tilelayer.pouchdb@1.0.0/L.TileLayer.PouchDB.js"></script>
+
     <style>
         :root { --neon: #00ff00; --bg: #000; --card: #111; --danger: #ff4444; --blue: #0088ff; }
         * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
@@ -35,17 +34,14 @@
         .label { color: #777; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 5px; }
         .val { font-size: 1.4rem; font-weight: bold; }
 
-        #map { height: 250px; width: 100%; border-radius: 15px; margin-top: 5px; grid-column: span 2; border: 2px solid #333; z-index: 1; }
+        #map { height: 250px; width: 100%; border-radius: 15px; margin-top: 5px; grid-column: span 2; border: 2px solid #333; z-index: 1; position: relative; }
         
-        #customModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; align-items: center; justify-content: center; }
-        .modal-content { background: var(--card); border: 2px solid var(--neon); padding: 30px; border-radius: 25px; width: 85%; text-align: center; }
+        .dl-btn { position: absolute; top: 10px; right: 10px; z-index: 1000; background: var(--blue); color: white; border: none; padding: 8px; border-radius: 5px; font-size: 0.7rem; font-weight: bold; cursor: pointer; }
 
         .btn { padding: 18px; border-radius: 15px; border: none; font-weight: 900; width: 100%; font-size: 1.1rem; }
         .btn-start { background: var(--neon); color: #000; width: 85%; }
         .btn-stop { background: var(--danger); color: #fff; margin-top: 10px; grid-column: span 2; }
-        .btn-export { background: var(--blue); color: #fff; margin-top: 10px; grid-column: span 2; font-size: 0.8rem; }
 
-        .input-box { width: 100%; padding: 15px; font-size: 1.5rem; text-align: center; background: #222; border: 2px solid #444; color: var(--neon); border-radius: 10px; }
         #keepAliveVideo { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
     </style>
 </head>
@@ -54,16 +50,6 @@
     <video id="keepAliveVideo" playsinline loop muted>
         <source src="https://raw.githubusercontent.com/intel/tiny-video-vignettes/master/ok.mp4" type="video/mp4">
     </video>
-
-    <div id="customModal">
-        <div class="modal-content">
-            <div id="modalText" style="margin-bottom:20px;">Confirmi?</div>
-            <div style="display:flex; gap:15px;">
-                <button class="btn" style="background:#333; color:#fff;" onclick="closeModal(false)">NU</button>
-                <button class="btn" style="background:var(--neon); color:#000;" onclick="closeModal(true)">DA</button>
-            </div>
-        </div>
-    </div>
 
     <div id="p1" class="page active">
         <div class="v-num" id="speed">0</div>
@@ -77,51 +63,35 @@
         <div class="stats-grid">
             <div class="card"><div class="label">Distanță</div><div class="val" id="d-val">0.0 km</div></div>
             <div class="card"><div class="label">Medie</div><div class="val" id="avg-val">0.0</div></div>
-            <div id="map"></div>
-            <button class="btn btn-export" id="exportBtn" style="display:none;" onclick="exportGPX()">SALVEAZĂ GPX</button>
-            <button class="btn btn-stop" id="stopBtn" style="display:none;" onclick="openModal('Finalizezi cursa?', stopAndSave)">STOP CURSĂ</button>
+            <div id="map">
+                <button class="dl-btn" onclick="downloadMap()">DESCARCĂ ZONA</button>
+            </div>
+            <button class="btn btn-stop" id="stopBtn" style="display:none;" onclick="stopAndSave()">STOP CURSĂ</button>
         </div>
     </div>
 
     <div id="p3" class="page" style="justify-content: flex-start; padding-top:20px; overflow-y:auto;">
-        <div style="background:var(--neon); color:#000; width:92%; padding:20px; border-radius:20px; margin-bottom:15px;">
+        <div id="odo-card" style="background:var(--neon); color:#000; width:92%; padding:20px; border-radius:20px; margin-bottom:15px;">
             <div class="label" style="color:#000; opacity:0.7;">TOTAL ODOMETRU</div>
             <div id="odo-display" style="font-size:2rem; font-weight:900;">0.0 km</div>
         </div>
         <div id="historyList" style="width:92%;"></div>
-        <button class="btn" style="background:none; color:#444; font-size:0.8rem; margin-top:20px;" onclick="openModal('Ștergi istoricul?', clearHistory)">ȘTERGE TOT</button>
-    </div>
-
-    <div id="p4" class="page" style="justify-content: flex-start; padding-top:40px;">
-        <h2 style="color:var(--neon);">SETĂRI</h2>
-        <div style="width: 85%;">
-            <div class="label">Greutate (KG)</div>
-            <input type="number" id="weightInput" class="input-box">
-            <button class="btn" style="background:#222; color:var(--neon); margin-top:15px;" onclick="saveSettings()">SALVEAZĂ</button>
-            <div id="saveMsg" style="margin-top:15px; color:var(--neon); display:none;">Setări salvate!</div>
-        </div>
     </div>
 
     <div class="nav">
         <button class="nav-item active-nav" id="b1" onclick="showPage(1)">Viteză</button>
         <button class="nav-item" id="b2" onclick="showPage(2)">Detalii</button>
         <button class="nav-item" id="b3" onclick="showPage(3)">Istoric</button>
-        <button class="nav-item" id="b4" onclick="showPage(4)">Setări</button>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js').catch((err) => console.log("Eroare SW:", err));
-        }
-
         let activeTime = 0, totalTime = 0, totalDist = 0;
-        let moving = false, lastPos = null, pendingAction = null;
-        let map, route, timerInt, wakeLock = null;
+        let moving = false, lastPos = null, isRideActive = false;
+        let map, route, timerInt, tileLayer, wakeLock = null;
 
         window.onload = () => {
             document.getElementById('odo-display').textContent = (localStorage.getItem('bikeOdo') || "0.0") + " km";
-            document.getElementById('weightInput').value = localStorage.getItem('bikeWeight') || 75;
+            initMap();
         };
 
         function showPage(n) {
@@ -133,30 +103,47 @@
             if(n === 3) renderHistory();
         }
 
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([44.43, 26.10], 15);
+            
+            // Configurare strat cu CACHE (IndexedDB)
+            tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                useCache: true,
+                crossOrigin: true,
+                cacheMaxAge: 30 * 24 * 60 * 60 * 1000 // Salvează hărțile 30 de zile
+            }).addTo(map);
+
+            route = L.polyline([], {color: '#00ff00', weight: 6}).addTo(map);
+        }
+
+        async function downloadMap() {
+            const bounds = map.getBounds();
+            alert("Încep descărcarea zonei vizibile (Zoom 14-16)... Așteaptă confirmarea.");
+            try {
+                // "Seed" descarcă toate tiles-urile din zona curentă
+                await tileLayer.seed(bounds, 14, 16);
+                alert("Gata! Harta zonei este salvată offline.");
+            } catch (e) {
+                alert("Eroare: Ai nevoie de internet pentru a descărca harta prima dată.");
+            }
+        }
+
         async function startRide() {
+            isRideActive = true;
             document.getElementById('keepAliveVideo').play().catch(() => {});
             if ('wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
 
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'block';
-            document.getElementById('exportBtn').style.display = 'block';
-
-            if(!map) {
-                map = L.map('map', {zoomControl: false}).setView([44.43, 26.10], 16);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                route = L.polyline([], {color: '#00ff00', weight: 8, opacity: 1.0}).addTo(map);
-            }
 
             timerInt = setInterval(() => {
                 totalTime++;
-                document.getElementById('totalTimer').textContent = new Date(totalTime * 1000).toISOString().substr(11, 8);
+                document.getElementById('totalTimer').textContent = formatTime(totalTime);
 
                 if(moving) {
                     activeTime++;
-                    document.getElementById('activeTimer').textContent = new Date(activeTime * 1000).toISOString().substr(11, 8);
-                    
-                    let oreActive = activeTime / 3600;
-                    let avg = (totalDist / oreActive) || 0;
+                    document.getElementById('activeTimer').textContent = formatTime(activeTime);
+                    let avg = (totalDist / (activeTime / 3600)) || 0;
                     document.getElementById('avg-val').textContent = avg.toFixed(1);
                 }
             }, 1000);
@@ -165,22 +152,31 @@
         }
 
         function update(pos) {
-            const { latitude: lat, longitude: lon, speed } = pos.coords;
-            const kmh = speed > 0 ? speed * 3.6 : 0;
+            if(!isRideActive) return;
+            const { latitude: lat, longitude: lon, speed, accuracy } = pos.coords;
             
-            document.getElementById('speed').textContent = Math.round(kmh);
+            // FILTRU 1: Ignorăm semnalul prost (peste 25m eroare)
+            if (accuracy > 25) return;
 
-            // PRAG ACTIV: 4 km/h
-            if(kmh >= 4.0) {
+            const kmh = speed > 0 ? speed * 3.6 : 0;
+            document.getElementById('speed').textContent = kmh > 1.5 ? Math.round(kmh) : 0;
+
+            // FILTRU 2: Doar peste 4 km/h considerăm mișcare reală
+            if (kmh >= 4.0) {
                 moving = true;
-                if(lastPos) {
+                if (lastPos) {
                     let d = calcDist(lastPos.lat, lastPos.lon, lat, lon);
-                    if(d < 0.5) totalDist += d; 
+                    // FILTRU 3: Ignorăm vibrațiile GPS sub 3 metri
+                    if (d > 0.003 && d < 0.3) {
+                        totalDist += d;
+                        document.getElementById('d-val').textContent = totalDist.toFixed(1) + " km";
+                        lastPos = {lat, lon};
+                        route.addLatLng([lat, lon]);
+                        map.panTo([lat, lon]);
+                    }
+                } else {
+                    lastPos = {lat, lon};
                 }
-                document.getElementById('d-val').textContent = totalDist.toFixed(1) + " km";
-                lastPos = {lat, lon};
-                route.addLatLng([lat, lon]);
-                map.panTo([lat, lon]);
             } else {
                 moving = false;
             }
@@ -192,48 +188,26 @@
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        function stopAndSave() {
-            let odo = parseFloat(localStorage.getItem('bikeOdo') || "0.0");
-            localStorage.setItem('bikeOdo', (odo + totalDist).toFixed(1));
-            let h = JSON.parse(localStorage.getItem('bikeHistory') || '[]');
-            
-            // Salvăm timpul activ în istoric
-            let tActiv = document.getElementById('activeTimer').textContent;
-            h.unshift({ d: totalDist.toFixed(1), t: tActiv, date: new Date().toLocaleDateString() });
-            
-            localStorage.setItem('bikeHistory', JSON.stringify(h));
-            if(wakeLock) wakeLock.release();
-            location.reload();
+        function formatTime(s) {
+            return new Date(s * 1000).toISOString().substr(11, 8);
         }
 
-        function exportGPX() {
-            const points = route.getLatLngs();
-            if (points.length < 2) return alert("Traseu prea scurt!");
-            let gpx = `<?xml version="1.1"?><gpx creator="BikePro"><trk><trkseg>`;
-            points.forEach(p => gpx += `<trkpt lat="${p.lat}" lon="${p.lng}"></trkpt>`);
-            gpx += `</trkseg></trk></gpx>`;
-            const blob = new Blob([gpx], {type: 'application/gpx+xml'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = `ride_${Date.now()}.gpx`; a.click();
+        function stopAndSave() {
+            if(!confirm("Finalizezi cursa?")) return;
+            let odo = parseFloat(localStorage.getItem('bikeOdo') || "0.0");
+            localStorage.setItem('bikeOdo', (odo + totalDist).toFixed(1));
+            
+            let h = JSON.parse(localStorage.getItem('bikeHistory') || '[]');
+            h.unshift({ d: totalDist.toFixed(1), t: formatTime(activeTime), date: new Date().toLocaleDateString() });
+            localStorage.setItem('bikeHistory', JSON.stringify(h));
+            
+            location.reload();
         }
 
         function renderHistory() {
             const h = JSON.parse(localStorage.getItem('bikeHistory') || '[]');
             document.getElementById('historyList').innerHTML = h.map(i => `<div class="card" style="margin-bottom:8px; text-align:left;"><div class="label">${i.date}</div><b>${i.d} km</b> | ${i.t}</div>`).join('');
         }
-
-        function openModal(t, a) { document.getElementById('modalText').textContent = t; document.getElementById('customModal').style.display = 'flex'; pendingAction = a; }
-        function closeModal(c) { document.getElementById('customModal').style.display = 'none'; if(c && pendingAction) pendingAction(); }
-        
-        function saveSettings() { 
-            localStorage.setItem('bikeWeight', document.getElementById('weightInput').value); 
-            const msg = document.getElementById('saveMsg');
-            msg.style.display = 'block';
-            setTimeout(() => msg.style.display = 'none', 2000);
-        }
-        
-        function clearHistory() { localStorage.removeItem('bikeHistory'); renderHistory(); }
     </script>
 </body>
 </html>
