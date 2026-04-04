@@ -1,4 +1,4 @@
-# ciclocomputer-app# 🚴 Bike Pro Elite - Ciclocomputer Digital (PWA)
+# Speed-Pro-Elite# 🚴 Bike Pro Elite - Digital (PWA)
 
 **Bike Pro Elite** este un computer de bord modern, creat special pentru pasionații de ciclism. Fiind o aplicație de tip *Progressive Web App* (PWA), aceasta oferă o experiență similară unei aplicații native, dar rulează direct în browserul tău, fără a ocupa spațiu inutil.
 
